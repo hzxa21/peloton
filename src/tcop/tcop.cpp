@@ -288,6 +288,7 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
       throw ParserException("Error parsing SQL statement");
     }
     auto plan = optimizer_->BuildPelotonPlanTree(sql_stmt);
+    LOG_INFO("Query Plan: {\n%s\n}", planner::PlanUtil::GetInfo(plan.get()).c_str());
     statement->SetPlanTree(plan);
 
     // Get the tables that our plan references so that we know how to
