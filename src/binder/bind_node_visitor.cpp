@@ -29,6 +29,7 @@ void BindNodeVisitor::BindNameToNode(parser::SQLStatement *tree) {
 
 void BindNodeVisitor::Visit(const parser::SelectStatement *node) {
   // Save the upper level context
+  LOG_INFO("Binder Enter SELECT...");
   auto pre_context = context_;
   context_ = std::make_shared<BinderContext>();
   context_->upper_context = pre_context;
@@ -55,6 +56,7 @@ void BindNodeVisitor::Visit(const parser::JoinDefinition *node) {
 }
 
 void BindNodeVisitor::Visit(const parser::TableRef *node) {
+  LOG_INFO("Binder Enter TableRef...");
   // Nested select. Not supported in the current executors
   if (node->select != nullptr) node->select->Accept(this);
   // Join
@@ -66,22 +68,26 @@ void BindNodeVisitor::Visit(const parser::TableRef *node) {
   }
   // Single table
   else {
+    LOG_INFO("Add table %s in context", node->GetTableAlias());
     context_->AddTable(node);
   }
 }
 
 void BindNodeVisitor::Visit(const parser::GroupByDescription *node) {
+  LOG_INFO("Binder Enter GROUP BY...");
   for (auto col : *(node->columns)) {
     col->Accept(this);
   }
   if (node->having != nullptr) node->having->Accept(this);
 }
 void BindNodeVisitor::Visit(const parser::OrderDescription *node) {
+  LOG_INFO("Binder Enter ORDER BY...");
   for (auto expr : *(node->exprs))
     if (expr != nullptr) expr->Accept(this);
 }
 
 void BindNodeVisitor::Visit(const parser::UpdateStatement *node) {
+  LOG_INFO("Binder Enter UPDATE...");
   context_ = std::make_shared<BinderContext>();
 
   node->table->Accept(this);
@@ -97,6 +103,7 @@ void BindNodeVisitor::Visit(const parser::UpdateStatement *node) {
 }
 
 void BindNodeVisitor::Visit(const parser::DeleteStatement *node) {
+  LOG_INFO("Binder Enter DELETE...");
   context_ = std::make_shared<BinderContext>();
 
   context_->AddTable(node->GetDatabaseName(), node->GetTableName());
@@ -150,6 +157,11 @@ void BindNodeVisitor::Visit(expression::TupleValueExpression *expr) {
     }
     expr->SetValueType(value_type);
     expr->SetBoundOid(col_pos_tuple);
+    LOG_INFO("Bind expr %s...\ndb_id=%d\ntable_id=%d\ncol_id=%d",
+             col_name.c_str(),
+             std::get<0>(col_pos_tuple),
+             std::get<1>(col_pos_tuple),
+             std::get<2>(col_pos_tuple));
   }
 }
 
