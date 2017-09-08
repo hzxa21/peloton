@@ -78,7 +78,7 @@ bool BinderContext::GetColumnPosTuple(
 }
 
 bool BinderContext::GetColumnPosTuple(
-    std::shared_ptr<BinderContext> current_context, std::string& col_name,
+    std::shared_ptr<BinderContext> current_context, const std::string& col_name,
     std::tuple<oid_t, oid_t, oid_t>& col_pos_tuple, std::string& table_alias,
     type::TypeId& value_type, concurrency::Transaction* txn) {
   bool find_matched = false;
@@ -88,6 +88,7 @@ bool BinderContext::GetColumnPosTuple(
                                            col_pos_tuple, value_type, txn);
       if (get_matched) {
         if (!find_matched) {
+          // First match
           find_matched = true;
           table_alias = entry.first;
         } else {
@@ -95,7 +96,7 @@ bool BinderContext::GetColumnPosTuple(
         }
       }
     }
-    current_context = current_context->upper_context;
+    current_context = current_context->GetUpperContext();
   }
   return find_matched;
 }
@@ -109,7 +110,7 @@ bool BinderContext::GetTableIdTuple(
       *id_tuple_ptr = iter->second;
       return true;
     }
-    current_context = current_context->upper_context;
+    current_context = current_context->GetUpperContext();
   }
   return false;
 }

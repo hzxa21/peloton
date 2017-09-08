@@ -127,10 +127,7 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
   }
 }
 
-void Optimizer::Reset() {
-  memo_ = Memo();
-  column_manager_ = move(ColumnManager());
-}
+void Optimizer::Reset() { memo_ = Memo(); }
 
 unique_ptr<planner::AbstractPlan> Optimizer::HandleDDLStatement(
     parser::SQLStatement *tree, bool &is_ddl_stmt,
@@ -223,7 +220,7 @@ shared_ptr<GroupExpression> Optimizer::InsertQueryTree(
 }
 
 PropertySet Optimizer::GetQueryRequiredProperties(parser::SQLStatement *tree) {
-  QueryPropertyExtractor converter(column_manager_);
+  QueryPropertyExtractor converter;
   return converter.GetProperties(tree);
 }
 
@@ -425,7 +422,7 @@ shared_ptr<GroupExpression> Optimizer::EnforceProperty(
   auto child_costs = vector<double>();
   child_costs.push_back(gexpr->GetCost(output_properties));
 
-  PropertyEnforcer enforcer(column_manager_);
+  PropertyEnforcer enforcer;
   auto enforced_gexpr =
       enforcer.EnforceProperty(gexpr, &output_properties, property);
 
@@ -463,7 +460,7 @@ shared_ptr<GroupExpression> Optimizer::EnforceProperty(
 
 vector<pair<PropertySet, vector<PropertySet>>> Optimizer::DeriveChildProperties(
     shared_ptr<GroupExpression> gexpr, PropertySet requirements) {
-  ChildPropertyGenerator converter(column_manager_);
+  ChildPropertyGenerator converter;
   return converter.GetProperties(gexpr, requirements, &memo_);
 }
 
@@ -471,7 +468,7 @@ void Optimizer::DeriveCostAndStats(
     shared_ptr<GroupExpression> gexpr, const PropertySet &output_properties,
     const vector<PropertySet> &input_properties_list,
     vector<shared_ptr<Stats>> child_stats, vector<double> child_costs) {
-  CostAndStatsCalculator calculator(column_manager_);
+  CostAndStatsCalculator calculator;
   calculator.CalculateCostAndStats(gexpr, &output_properties,
                                    &input_properties_list, child_stats,
                                    child_costs);
