@@ -18,7 +18,7 @@
 namespace peloton {
 namespace binder {
 
-BindNodeVisitor::BindNodeVisitor(concurrency::Transaction *txn): txn_(txn) {
+BindNodeVisitor::BindNodeVisitor(concurrency::Transaction *txn) : txn_(txn) {
   context_ = nullptr;
 }
 
@@ -30,7 +30,7 @@ void BindNodeVisitor::Visit(const parser::SelectStatement *node) {
   // Save the upper level context
   auto pre_context = context_;
   context_ = std::make_shared<BinderContext>();
-  context_->upper_context = pre_context;
+  context_->SetUpperContext(pre_context);
   if (node->from_table != nullptr) node->from_table->Accept(this);
   if (node->where_clause != nullptr) node->where_clause->Accept(this);
   if (node->order != nullptr) node->order->Accept(this);
@@ -41,7 +41,7 @@ void BindNodeVisitor::Visit(const parser::SelectStatement *node) {
   }
 
   // Restore the upper level context
-  context_ = context_->upper_context;
+  context_ = context_->GetUpperContext();
 }
 
 // Some sub query nodes inside SelectStatement
@@ -97,8 +97,7 @@ void BindNodeVisitor::Visit(const parser::UpdateStatement *node) {
 void BindNodeVisitor::Visit(const parser::DeleteStatement *node) {
   context_ = std::make_shared<BinderContext>();
 
-  context_->AddTable(node->GetDatabaseName(), node->GetTableName(),
-                     txn_);
+  context_->AddTable(node->GetDatabaseName(), node->GetTableName(), txn_);
 
   if (node->expr != nullptr) node->expr->Accept(this);
 
@@ -135,23 +134,27 @@ void BindNodeVisitor::Visit(expression::TupleValueExpression *expr) {
                    ::tolower);
 
     type::TypeId value_type;
-    // Table name not specified in the expression
+    // Table name not specified in the expression. Loop through all the table
+    // in the binder context.
     if (table_name.empty()) {
       if (!BinderContext::GetColumnPosTuple(context_, col_name, col_pos_tuple,
-                                            table_name, value_type))
+                                            table_name, value_type)) {
         throw Exception("Cannot find column " + col_name);
+      }
       expr->SetTableName(table_name);
     }
     // Table name is present
     else {
       // Find the corresponding table in the context
       if (!BinderContext::GetTableIdTuple(context_, table_name,
-                                          &table_id_tuple))
+                                          &table_id_tuple)) {
         throw Exception("Invalid table reference " + expr->GetTableName());
+      }
       // Find the column offset in that table
       if (!BinderContext::GetColumnPosTuple(col_name, table_id_tuple,
-                                            col_pos_tuple, value_type))
+                                            col_pos_tuple, value_type)) {
         throw Exception("Cannot find column " + col_name);
+      }
     }
     expr->SetValueType(value_type);
     expr->SetBoundOid(col_pos_tuple);

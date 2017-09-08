@@ -14,9 +14,9 @@
 
 #include "catalog/catalog.h"
 #include "catalog/schema.h"
+#include "parser/table_ref.h"
 #include "storage/data_table.h"
 #include "storage/storage_manager.h"
-#include "parser/table_ref.h"
 
 namespace peloton {
 namespace binder {
@@ -51,27 +51,27 @@ void BinderContext::AddTable(const std::string db_name,
 }
 
 bool BinderContext::GetColumnPosTuple(
-    std::string& col_name, std::tuple<oid_t, oid_t>& table_id_tuple,
+    const std::string& col_name, const std::tuple<oid_t, oid_t>& table_id_tuple,
     std::tuple<oid_t, oid_t, oid_t>& col_pos_tuple, type::TypeId& value_type) {
-    try{
-        auto db_id = std::get<0>(table_id_tuple);
-        auto table_id = std::get<1>(table_id_tuple);
-        auto schema = storage::StorageManager::GetInstance()
-                    ->GetTableWithOid(db_id, table_id)
-                    ->GetSchema();
-        auto col_pos = schema->GetColumnID(col_name);
-        if (col_pos == (oid_t)-1) return false;
-        col_pos_tuple = std::make_tuple(db_id, table_id, col_pos);
-        value_type = schema->GetColumn(col_pos).GetType();
-        return true;
-    } catch (CatalogException &e) {
-        LOG_TRACE("Can't find table %d! Return false", std::get<1>(table_id_tuple));
-        return false;
-    }
+  try {
+    auto db_id = std::get<0>(table_id_tuple);
+    auto table_id = std::get<1>(table_id_tuple);
+    auto schema = storage::StorageManager::GetInstance()
+                      ->GetTableWithOid(db_id, table_id)
+                      ->GetSchema();
+    auto col_pos = schema->GetColumnID(col_name);
+    if (col_pos == (oid_t)-1) return false;
+    col_pos_tuple = std::make_tuple(db_id, table_id, col_pos);
+    value_type = schema->GetColumn(col_pos).GetType();
+    return true;
+  } catch (CatalogException& e) {
+    LOG_TRACE("Can't find table %d! Return false", std::get<1>(table_id_tuple));
+    return false;
+  }
 }
 
 bool BinderContext::GetColumnPosTuple(
-    std::shared_ptr<BinderContext> current_context, std::string& col_name,
+    std::shared_ptr<BinderContext> current_context, const std::string& col_name,
     std::tuple<oid_t, oid_t, oid_t>& col_pos_tuple, std::string& table_alias,
     type::TypeId& value_type) {
   bool find_matched = false;
@@ -81,6 +81,7 @@ bool BinderContext::GetColumnPosTuple(
           GetColumnPosTuple(col_name, entry.second, col_pos_tuple, value_type);
       if (get_matched) {
         if (!find_matched) {
+          // First match
           find_matched = true;
           table_alias = entry.first;
         } else {
@@ -88,7 +89,7 @@ bool BinderContext::GetColumnPosTuple(
         }
       }
     }
-    current_context = current_context->upper_context;
+    current_context = current_context->GetUpperContext();
   }
   return find_matched;
 }
@@ -102,7 +103,7 @@ bool BinderContext::GetTableIdTuple(
       *id_tuple_ptr = iter->second;
       return true;
     }
-    current_context = current_context->upper_context;
+    current_context = current_context->GetUpperContext();
   }
   return false;
 }
