@@ -49,11 +49,9 @@ void CostAndStatsCalculator::Visit(const PhysicalIndexScan *op) {
   // indexSearchable ? Index : SeqScan
   // TODO : Replace with more accurate cost
   output_stats_.reset(new Stats(nullptr));
-  auto predicate_prop =
-      output_properties_->GetPropertyOfType(PropertyType::PREDICATE)
-          ->As<PropertyPredicate>();
+  auto predicate = op->predicate;
 
-  if (predicate_prop == nullptr) {
+  if (predicate == nullptr) {
     output_cost_ = 2;
     return;
   }
@@ -63,8 +61,7 @@ void CostAndStatsCalculator::Visit(const PhysicalIndexScan *op) {
   std::vector<type::Value> values;
   oid_t index_id = 0;
 
-  expression::AbstractExpression *predicate = predicate_prop->GetPredicate();
-  if (util::CheckIndexSearchable(op->table_, predicate, key_column_ids,
+  if (util::CheckIndexSearchable(op->table_, predicate.get(), key_column_ids,
                                  expr_types, values, index_id)) {
     output_cost_ = 0;
   } else {
