@@ -2687,9 +2687,6 @@ std::string PropertyTypeToString(PropertyType type) {
     case PropertyType::INVALID: {
       return "INVALID";
     }
-    case PropertyType::PREDICATE: {
-      return "PREDICATE";
-    }
     case PropertyType::COLUMNS: {
       return "COLUMNS";
     }
