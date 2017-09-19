@@ -1274,8 +1274,7 @@ enum class PropertyType {
   COLUMNS,
   DISTINCT,
   SORT,
-  LIMIT,
-  PREDICATE
+  LIMIT
 };
 std::string PropertyTypeToString(PropertyType type);
 PropertyType StringToPropertyType(const std::string &str);
