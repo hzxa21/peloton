@@ -12,7 +12,6 @@
 
 #include <include/parser/statements.h>
 #include <include/optimizer/util.h>
-#include <include/optimizer/memo.h>
 #include "optimizer/query_property_extractor.h"
 
 #include "catalog/catalog.h"
@@ -30,8 +29,7 @@ using std::move;
 namespace peloton {
 namespace optimizer {
 
-PropertySet QueryPropertyExtractor::GetProperties(parser::SQLStatement *stmt, Memo* memo) {
-  memo_ = memo;
+PropertySet QueryPropertyExtractor::GetProperties(parser::SQLStatement *stmt) {
   stmt->Accept(this);
   return property_set_;
 }
@@ -41,7 +39,12 @@ void QueryPropertyExtractor::Visit(const parser::SelectStatement *select_stmt) {
   if (select_stmt->from_table != nullptr)
     select_stmt->from_table->Accept(this);
   if (select_stmt->where_clause != nullptr)
-    util::ExtractPredicates(select_stmt->where_clause.get(), memo_->predicates);
+    util::ExtractPredicates(select_stmt->where_clause.get(), predicates_);
+
+  // Generate PropertyPredicatess
+  if (!predicates_.empty())
+    property_set_.AddProperty(
+        shared_ptr<PropertyPredicates>(new PropertyPredicates(predicates_)));
 
   // Generate PropertyColumns
   vector<shared_ptr<expression::AbstractExpression>> output_expressions;
@@ -82,7 +85,7 @@ void QueryPropertyExtractor::Visit(const parser::TableRef *op) {
 void QueryPropertyExtractor::Visit(const parser::JoinDefinition *node) {
   node->left->Accept(this);
   node->right->Accept(this);
-  util::ExtractPredicates(node->condition, memo_->predicates);
+  util::ExtractPredicates(node->condition, predicates_);
 }
 void QueryPropertyExtractor::Visit(const parser::GroupByDescription *) {}
 void QueryPropertyExtractor::Visit(const parser::OrderDescription *node) {
