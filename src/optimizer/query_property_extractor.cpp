@@ -35,17 +35,6 @@ PropertySet QueryPropertyExtractor::GetProperties(parser::SQLStatement *stmt) {
 }
 
 void QueryPropertyExtractor::Visit(const parser::SelectStatement *select_stmt) {
-  // Gather predicates
-  if (select_stmt->from_table != nullptr)
-    select_stmt->from_table->Accept(this);
-  if (select_stmt->where_clause != nullptr)
-    util::ExtractPredicates(select_stmt->where_clause.get(), predicates_);
-
-  // Generate PropertyPredicatess
-  if (!predicates_.empty())
-    property_set_.AddProperty(
-        shared_ptr<PropertyPredicates>(new PropertyPredicates(predicates_)));
-
   // Generate PropertyColumns
   vector<shared_ptr<expression::AbstractExpression>> output_expressions;
   for (auto& col : select_stmt->select_list) {
@@ -73,20 +62,8 @@ void QueryPropertyExtractor::Visit(const parser::SelectStatement *select_stmt) {
   if (select_stmt->limit != nullptr)
     select_stmt->limit->Accept(this);
 };
-void QueryPropertyExtractor::Visit(const parser::TableRef *op) {
-  if (op->select != nullptr && op->select->from_table != nullptr)
-    op->select->from_table->Accept(this);
-  if (op->join != nullptr)
-    op->join->Accept(this);
-  if (op->list != nullptr)
-    for (auto table : *op->list)
-      table->Accept(this);
-}
-void QueryPropertyExtractor::Visit(const parser::JoinDefinition *node) {
-  node->left->Accept(this);
-  node->right->Accept(this);
-  util::ExtractPredicates(node->condition, predicates_);
-}
+void QueryPropertyExtractor::Visit(const parser::TableRef *) {}
+void QueryPropertyExtractor::Visit(const parser::JoinDefinition *) {}
 void QueryPropertyExtractor::Visit(const parser::GroupByDescription *) {}
 void QueryPropertyExtractor::Visit(const parser::OrderDescription *node) {
   vector<bool> sort_ascendings;
