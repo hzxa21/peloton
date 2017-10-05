@@ -138,7 +138,7 @@ void BindNodeVisitor::Visit(expression::TupleValueExpression *expr) {
     // in the binder context.
     if (table_name.empty()) {
       if (!BinderContext::GetColumnPosTuple(context_, col_name, col_pos_tuple,
-                                            table_name, value_type, txn_))
+                                            table_name, value_type, txn_)) {
         throw Exception("Cannot find column " + col_name);
       }
       expr->SetTableName(table_name);
@@ -152,7 +152,7 @@ void BindNodeVisitor::Visit(expression::TupleValueExpression *expr) {
       }
       // Find the column offset in that table
       if (!BinderContext::GetColumnPosTuple(col_name, table_id_tuple,
-                                            col_pos_tuple, value_type, txn_))
+                                            col_pos_tuple, value_type, txn_)) {
         throw Exception("Cannot find column " + col_name);
       }
     }
