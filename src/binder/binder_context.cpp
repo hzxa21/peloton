@@ -25,8 +25,6 @@ namespace binder {
 void BinderContext::AddRegularTable(const parser::TableRef *table_ref,
                                     concurrency::Transaction *txn) {
   auto table_alias = table_ref->GetTableAlias();
-  if (table_alias == nullptr)
-    table_alias = table_ref->GetTableName();
   AddRegularTable(table_ref->GetDatabaseName(), table_ref->GetTableName(), table_alias, txn);
 }
 
@@ -60,6 +58,7 @@ void BinderContext::AddNestedTable(const std::string table_alias,
       auto tv_expr = reinterpret_cast<expression::TupleValueExpression*>(expr);
       alias = tv_expr->GetColumnName();
     }
+    else continue;
     std::transform(alias.begin(), alias.end(), alias.begin(),
                    ::tolower);
     column_alias_map[alias] = expr->GetValueType();
