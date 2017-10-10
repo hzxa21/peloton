@@ -184,6 +184,7 @@ void QueryToOperatorTransformer::Visit(const parser::TableRef *node) {
     auto child_expr = output_expr_;
     output_expr_ = std::make_shared<OperatorExpression>(
         LogicalQueryDerivedGet::make(alias, alias_to_expr_map));
+    output_expr_->PushChild(child_expr);
 
   }
   // Explicit Join
