@@ -67,7 +67,12 @@ void CostAndStatsCalculator::Visit(const PhysicalIndexScan *op) {
   } else {
     output_cost_ = 2;
   }
-};
+}
+
+void CostAndStatsCalculator::Visit(const QueryDerivedScan *) {
+  output_cost_ = child_costs_[0];
+}
+
 void CostAndStatsCalculator::Visit(const PhysicalProject *) {
   // TODO: Replace with more accurate cost
   output_stats_.reset(new Stats(nullptr));
