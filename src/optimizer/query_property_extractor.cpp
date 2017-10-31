@@ -37,7 +37,7 @@ PropertySet QueryPropertyExtractor::GetProperties(parser::SQLStatement *stmt) {
 void QueryPropertyExtractor::Visit(const parser::SelectStatement *select_stmt) {
   // Generate PropertyColumns
   vector<shared_ptr<expression::AbstractExpression>> output_expressions;
-  for (auto& col : select_stmt->select_list) {
+  for (auto &col : select_stmt->select_list) {
     output_expressions.emplace_back(col->Copy());
   }
   property_set_.AddProperty(
@@ -51,12 +51,10 @@ void QueryPropertyExtractor::Visit(const parser::SelectStatement *select_stmt) {
   }
 
   // Generate PropertySort
-  if (select_stmt->order != nullptr)
-    select_stmt->order->Accept(this);
-  
+  if (select_stmt->order != nullptr) select_stmt->order->Accept(this);
+
   // Generate PropertyLimit
-  if (select_stmt->limit != nullptr)
-    select_stmt->limit->Accept(this);
+  if (select_stmt->limit != nullptr) select_stmt->limit->Accept(this);
 };
 void QueryPropertyExtractor::Visit(const parser::TableRef *) {}
 void QueryPropertyExtractor::Visit(const parser::JoinDefinition *) {}
@@ -77,16 +75,15 @@ void QueryPropertyExtractor::Visit(const parser::OrderDescription *node) {
 void QueryPropertyExtractor::Visit(const parser::LimitDescription *limit) {
   // When offset is not specified in the query, parser will set offset to -1
   int64_t offset = limit->offset == -1 ? 0 : limit->offset;
-  property_set_.AddProperty(shared_ptr<PropertyLimit>(
-      new PropertyLimit(offset, limit->limit)));
+  property_set_.AddProperty(
+      shared_ptr<PropertyLimit>(new PropertyLimit(offset, limit->limit)));
 }
 
 void QueryPropertyExtractor::Visit(
     UNUSED_ATTRIBUTE const parser::CreateStatement *op) {}
 void QueryPropertyExtractor::Visit(
     UNUSED_ATTRIBUTE const parser::InsertStatement *op) {
-  if (op->select != nullptr)
-    op->select->Accept(this);
+  if (op->select != nullptr) op->select->Accept(this);
 }
 
 void QueryPropertyExtractor::Visit(const parser::DeleteStatement *) {
