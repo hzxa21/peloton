@@ -164,7 +164,7 @@ void QueryToOperatorTransformer::Visit(const parser::TableRef *node) {
 
     // Construct query derived table predicates
     auto table_alias = StringUtil::Lower(node->GetTableAlias());
-    auto alias_to_expr_map = util::ConstructSelectElementMap(*node->select->select_list);
+    auto alias_to_expr_map = util::ConstructSelectElementMap(node->select->select_list);
     auto predicates = pre_single_table_predicates_map[table_alias];
     std::vector<expression::AbstractExpression*> transformed_predicates;
     for (auto& original_predicate : predicates) {
