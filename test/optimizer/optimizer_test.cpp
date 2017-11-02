@@ -1,3 +1,4 @@
+#include <include/settings/settings_manager.h>
 #include "common/harness.h"
 
 #define private public
@@ -31,24 +32,88 @@ namespace test {
 
 using namespace optimizer;
 
-class OptimizerTests : public PelotonTest {};
+class OptimizerTests : public PelotonTest {
+ public:
+  OptimizerTests() : txn_manager_(concurrency::TransactionManagerFactory::GetInstance()) {
+    // Create test db
+    LOG_INFO("Create default db...");
+    auto txn = txn_manager_.BeginTransaction();
+    catalog::Catalog::GetInstance()->CreateDatabase(DEFAULT_DB_NAME, txn);
+    txn_manager_.CommitTransaction(txn);
+  }
+
+  ~OptimizerTests() {
+    // Drop test db
+    LOG_INFO("Destroy default db...");
+    auto txn = txn_manager_.BeginTransaction();
+    catalog::Catalog::GetInstance()->DropDatabaseWithName(DEFAULT_DB_NAME, txn);
+    txn_manager_.CommitTransaction(txn);
+  }
+
+  std::vector<int> CreateAndLoadTable(std::string table_name,
+                                      size_t type_size,
+                                      size_t tuple_size,
+                                      size_t table_size,
+                                      double join_selectivity,
+                                      std::vector<int>& candidate_res) {
+    LOG_INFO("Create table %s", table_name.c_str());
+    auto *txn = txn_manager_.BeginTransaction();
+    TestingSQLUtil::CreateTable(table_name, tuple_size, txn);
+    LOG_INFO("Load data into table %s, tuple_size = %ld, table_size = %ld",
+             table_name.c_str(), tuple_size, table_size);
+    std::vector<int> res;
+    std::unordered_set<int> res_set;
+    size_t curr_size = 0;
+    size_t val_size = (tuple_size + type_size - 1) / type_size;
+    auto *table = catalog::Catalog::GetInstance()->GetTableWithName(DEFAULT_DB_NAME, table_name, txn);
+    while (curr_size < table_size) {
+      // Find a unique random number
+      int random;
+      if (rand() % 100 < join_selectivity * 100) {
+        random = candidate_res[rand() * candidate_res.size()];
+      }
+      else {
+        do {
+          random = rand();
+        } while (res_set.count(random) == 1);
+        res.push_back(random);
+        res_set.insert(random);
+      }
+
+      // Insert tuple into the table
+      std::vector<int> vals(val_size, random);
+      TestingSQLUtil::InsertTuple(vals, table, txn);
+
+      curr_size += tuple_size;
+    }
+
+    txn_manager_.CommitTransaction(txn);
+    return res;
+  }
+
+  double ExecuteQuery(std::string query, std::vector<StatementResult> &result) {
+    LOG_INFO("Execute query %s", query.c_str());
+    Timer<std::ratio<1, 1000>> timer;
+    timer.Start();
+    TestingSQLUtil::ExecuteSQLQuery(query, result);
+    timer.Stop();
+    return timer.GetDuration();
+  }
+
+  concurrency::TransactionManager& txn_manager_;
+
+
+};
 
 // Test whether update stament will use index scan plan
 // TODO: Split the tests into separate test cases.
 TEST_F(OptimizerTests, HashJoinTest) {
-  LOG_INFO("Bootstrapping...");
-  auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
-  catalog::Catalog::GetInstance()->CreateDatabase(DEFAULT_DB_NAME, txn);
-  txn_manager.CommitTransaction(txn);
-  LOG_INFO("Bootstrapping completed!");
-
   optimizer::Optimizer optimizer;
   auto& traffic_cop = tcop::TrafficCop::GetInstance();
   traffic_cop.SetTaskCallback(TestingSQLUtil::UtilTestTaskCallback, &TestingSQLUtil::counter_);
 
   // Create a table first
-  txn = txn_manager.BeginTransaction();
+  auto txn = txn_manager_.BeginTransaction();
   traffic_cop.SetTcopTxnState(txn);
   LOG_INFO("Creating table");
   LOG_INFO("Query: CREATE TABLE table_a(aid INT PRIMARY KEY,value INT);");
@@ -82,7 +147,7 @@ TEST_F(OptimizerTests, HashJoinTest) {
   LOG_INFO("Table Created");
   traffic_cop.CommitQueryHelper();
 
-  txn = txn_manager.BeginTransaction();
+  txn = txn_manager_.BeginTransaction();
   EXPECT_EQ(catalog::Catalog::GetInstance()
                 ->GetDatabaseWithName(DEFAULT_DB_NAME, txn)
                 ->GetTableCount(),
@@ -115,7 +180,7 @@ TEST_F(OptimizerTests, HashJoinTest) {
   LOG_INFO("Table Created");
   traffic_cop.CommitQueryHelper();
 
-  txn = txn_manager.BeginTransaction();
+  txn = txn_manager_.BeginTransaction();
   EXPECT_EQ(catalog::Catalog::GetInstance()
                 ->GetDatabaseWithName(DEFAULT_DB_NAME, txn)
                 ->GetTableCount(),
@@ -150,7 +215,7 @@ TEST_F(OptimizerTests, HashJoinTest) {
   traffic_cop.CommitQueryHelper();
 
   // Inserting a tuple to table_b
-  txn = txn_manager.BeginTransaction();
+  txn = txn_manager_.BeginTransaction();
   traffic_cop.SetTcopTxnState(txn);
   LOG_INFO("Inserting a tuple...");
   LOG_INFO("Query: INSERT INTO table_b(bid, value) VALUES (1,2);");
@@ -178,7 +243,7 @@ TEST_F(OptimizerTests, HashJoinTest) {
   LOG_INFO("Tuple inserted to table_b!");
   traffic_cop.CommitQueryHelper();
 
-  txn = txn_manager.BeginTransaction();
+  txn = txn_manager_.BeginTransaction();
   traffic_cop.SetTcopTxnState(txn);
   LOG_INFO("Join ...");
   LOG_INFO("Query: SELECT * FROM table_a INNER JOIN table_b ON aid = bid;");
@@ -204,20 +269,9 @@ TEST_F(OptimizerTests, HashJoinTest) {
            ResultTypeToString(status.m_result).c_str());
   LOG_INFO("Join completed!");
   traffic_cop.CommitQueryHelper();
-
-  LOG_INFO("After Join...");
-  // free the database just created
-  txn = txn_manager.BeginTransaction();
-  catalog::Catalog::GetInstance()->DropDatabaseWithName(DEFAULT_DB_NAME, txn);
-  txn_manager.CommitTransaction(txn);
 }
 
 TEST_F(OptimizerTests, PredicatePushDownTest) {
-  auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
-  catalog::Catalog::GetInstance()->CreateDatabase(DEFAULT_DB_NAME, txn);
-  txn_manager.CommitTransaction(txn);
-
   TestingSQLUtil::ExecuteSQLQuery("CREATE TABLE test(a INT PRIMARY KEY, b INT, c INT);");
   TestingSQLUtil::ExecuteSQLQuery("CREATE TABLE test1(a INT PRIMARY KEY, b INT, c INT);");
 
@@ -226,9 +280,9 @@ TEST_F(OptimizerTests, PredicatePushDownTest) {
       "SELECT * FROM test, test1 WHERE test.a = test1.a AND test1.b = 22");
 
   optimizer::Optimizer optimizer;
-  txn = txn_manager.BeginTransaction();
+  auto txn = txn_manager_.BeginTransaction();
   auto plan = optimizer.BuildPelotonPlanTree(stmt, txn);
-  txn_manager.CommitTransaction(txn);
+  txn_manager_.CommitTransaction(txn);
 
 
   auto& child_plan = plan->GetChildren();
@@ -256,6 +310,36 @@ TEST_F(OptimizerTests, PredicatePushDownTest) {
   auto constant = dynamic_cast<expression::ConstantValueExpression*>(test1_predicate->GetModifiableChild(1));
   EXPECT_TRUE(constant != nullptr);
   EXPECT_EQ(22, constant->GetValue().GetAs<int>());
+}
+
+TEST_F(OptimizerTests, PredicatePushDownPerformanceTest) {
+  // Disable bloom filter in hash join
+  settings::SettingsManager::SetBool(settings::SettingId::hash_join_bloom_filter, false);
+
+  // Initialize tables. test1 is the inner table from which we build the
+  // hash table. test2 is the outer table which will probe the hash table.
+  const std::string table1_name = "test1";
+  const size_t table1_tuple_size = 32;
+  const size_t table1_table_size = 60000000;
+  const size_t bigint_size = 8;
+  double selectivity = 0.1;
+
+  std::vector<int> candidate_res = {};
+  candidate_res = CreateAndLoadTable(table1_name, bigint_size, table1_tuple_size, table1_table_size, 0.0, candidate_res);
+
+  std::sort(candidate_res.begin(), candidate_res.end());
+  size_t index = candidate_res.size() * selectivity;
+  // TODO: don't push down any predicate in where
+  // Hash on first, probe on second
+  std::string query = StringUtil::Format("SELECT count(T1.c0) FROM test1 as T1, test1 as T2 WHERE T1.c0 < %d and T1.c0 = T2.c0", candidate_res[index]);
+  std::vector<StatementResult> result1, result2;
+  double run_time1 = ExecuteQuery(query, result1);
+
+  settings::SettingsManager::SetBool(settings::SettingId::predicate_push_down, false);
+  double run_time2 = ExecuteQuery(query, result2);
+  LOG_INFO("Run time with predicate push-down: %fms", run_time1);
+  LOG_INFO("Run time without predicate push-down: %fms", run_time2);
+  EXPECT_EQ(result1, result2);
 }
 
 }  // namespace test

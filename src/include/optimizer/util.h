@@ -73,7 +73,8 @@ expression::AbstractExpression* CombinePredicates(
 
 void ExtractPredicates(expression::AbstractExpression* expr,
                        SingleTablePredicatesMap& where_predicates,
-                       MultiTablePredicates& join_predicates);
+                       MultiTablePredicates& join_predicates,
+                       bool enable_predicate_push_down);
 
 expression::AbstractExpression* ConstructJoinPredicate(
     std::unordered_set<std::string>& table_alias_set,

@@ -86,6 +86,14 @@ class TestingSQLUtil {
   static int GetRandomInteger(const int lower_bound, const int upper_bound);
   static void UtilTestTaskCallback(void *arg);
 
+  // Create a table where all the columns are BIGINT and each tuple has desired
+  // tuple size
+  static void CreateTable(std::string table_name, int tuple_size, concurrency::Transaction *txn);
+
+  // Wrapper to insert a tuple to specific table
+  static void InsertTuple(const std::vector<int> &vals, storage::DataTable *table,
+                   concurrency::Transaction *txn);
+
   static tcop::TrafficCop traffic_cop_;
   static std::atomic_int counter_;
 //  inline static void SetTrafficCopCounter() {

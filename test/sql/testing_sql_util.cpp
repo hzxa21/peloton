@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 #include "sql/testing_sql_util.h"
 #include <random>
+#include "type/value_factory.h"
 #include "catalog/catalog.h"
 #include "common/logger.h"
 #include "concurrency/transaction_manager_factory.h"
@@ -219,6 +220,36 @@ void TestingSQLUtil::ContinueAfterComplete() {
 void TestingSQLUtil::UtilTestTaskCallback(void *arg) {
   std::atomic_int *count = static_cast<std::atomic_int*>(arg);
   count->store(0);
+}
+
+void TestingSQLUtil::CreateTable(std::string table_name, int tuple_size, concurrency::Transaction *txn) {
+  int curr_size = 0;
+  size_t bigint_size = type::Type::GetTypeSize(type::TypeId::BIGINT);
+  std::vector<catalog::Column> cols;
+  while (curr_size < tuple_size) {
+    auto col = catalog::Column{type::TypeId::BIGINT, bigint_size,
+                               "c" + std::to_string(curr_size / bigint_size), true};
+    col.AddConstraint(catalog::Constraint(ConstraintType::NOTNULL, "con_not_null"));
+    cols.push_back(col);
+    curr_size += bigint_size;
+  }
+  auto *catalog = catalog::Catalog::GetInstance();
+  catalog->CreateTable(DEFAULT_DB_NAME, table_name,
+                       std::make_unique<catalog::Schema>(cols), txn);
+}
+
+void TestingSQLUtil::InsertTuple(const std::vector<int> &vals, storage::DataTable *table, 
+                                 concurrency::Transaction *txn) {
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  storage::Tuple tuple{table->GetSchema(), true};
+  for (unsigned i = 0; i < vals.size(); i++) {
+    tuple.SetValue(i, type::ValueFactory::GetBigIntValue(vals[i]));
+  }
+  ItemPointer *index_entry_ptr = nullptr;
+  auto tuple_slot_id = table->InsertTuple(&tuple, txn, &index_entry_ptr);
+  PL_ASSERT(tuple_slot_id.block != INVALID_OID);
+  PL_ASSERT(tuple_slot_id.offset != INVALID_OID);
+  txn_manager.PerformInsert(txn, tuple_slot_id, index_entry_ptr);
 }
 
 std::atomic_int TestingSQLUtil::counter_;

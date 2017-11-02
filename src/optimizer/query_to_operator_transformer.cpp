@@ -46,7 +46,9 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
   if (op->where_clause != nullptr) {
     // Extract single table predicates and join predicates from the where clause
     util::ExtractPredicates(op->where_clause.get(), single_table_predicates_map,
-                            join_predicates_);
+                            join_predicates_, enable_predicate_push_down_);
+    if (!enable_predicate_push_down_)
+      PL_ASSERT(single_table_predicates_map.empty());
   }
 
   if (op->from_table != nullptr) {
@@ -176,7 +178,8 @@ void QueryToOperatorTransformer::Visit(const parser::TableRef *node) {
     for (auto &original_predicate : predicates) {
       util::ExtractPredicates(util::TransformQueryDerivedTablePredicates(
                                   alias_to_expr_map, original_predicate.get()),
-                              single_table_predicates_map, join_predicates_);
+                              single_table_predicates_map, join_predicates_,
+                              enable_predicate_push_down_);
     }
 
     node->select->Accept(this);
