@@ -323,20 +323,26 @@ TEST_F(OptimizerTests, PredicatePushDownPerformanceTest) {
   const size_t table1_table_size = 60000000;
   const size_t bigint_size = 8;
   double selectivity = 0.1;
+  int iter = 3;
 
   std::vector<int> candidate_res = {};
   candidate_res = CreateAndLoadTable(table1_name, bigint_size, table1_tuple_size, table1_table_size, 0.0, candidate_res);
 
   std::sort(candidate_res.begin(), candidate_res.end());
   size_t index = candidate_res.size() * selectivity;
-  // TODO: don't push down any predicate in where
   // Hash on first, probe on second
-  std::string query = StringUtil::Format("SELECT count(T1.c0) FROM test1 as T1, test1 as T2 WHERE T1.c0 < %d and T1.c0 = T2.c0", candidate_res[index]);
+  std::string query = StringUtil::Format("SELECT count(T1.c0) FROM test1 as T1 join test1 as T2 on T1.c0 = T2.c0 WHERE T1.c0 < %d", candidate_res[index]);
   std::vector<StatementResult> result1, result2;
-  double run_time1 = ExecuteQuery(query, result1);
+  double run_time1 = 0;
+  for (int i=0; i<iter; i++)
+      run_time1 += ExecuteQuery(query, result1);
+  run_time1 = run_time1 / iter;
 
   settings::SettingsManager::SetBool(settings::SettingId::predicate_push_down, false);
-  double run_time2 = ExecuteQuery(query, result2);
+  double run_time2 = 0;
+  for (int i=0; i<iter; i++)
+    run_time2 += ExecuteQuery(query, result2);
+  run_time2 = run_time2 / iter;
   LOG_INFO("Run time with predicate push-down: %fms", run_time1);
   LOG_INFO("Run time without predicate push-down: %fms", run_time2);
   EXPECT_EQ(result1, result2);

@@ -364,7 +364,7 @@ void OAHashTable::Resize(HashEntry **entry_p_p) {
 // them, and then delete the entire array.
 //===----------------------------------------------------------------------===//
 void OAHashTable::Destroy() {
-  LOG_DEBUG("Cleaning up hash table with %llu entries ...", (unsigned long long) num_entries_);
+  LOG_INFO("Cleaning up hash table with %llu entries ...", (unsigned long long) num_entries_);
 
   uint64_t processed_count = 0;
   char *current_entry_char_p = reinterpret_cast<char *>(buckets_);
