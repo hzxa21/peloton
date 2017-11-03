@@ -72,6 +72,11 @@ file(GLOB_RECURSE tpch_srcs ${PROJECT_SOURCE_DIR}/src/main/tpch/*.cpp)
 add_executable(tpch EXCLUDE_FROM_ALL ${tpch_srcs})
 target_link_libraries(tpch peloton)
 
+# --[ optimizer
+file(GLOB_RECURSE optimier_srcs ${PROJECT_SOURCE_DIR}/src/main/optimizer/*.cpp)
+add_executable(optimizer EXCLUDE_FROM_ALL ${optimier_srcs})
+target_link_libraries(optimizer peloton)
+
 # --[ logger
 #file(GLOB_RECURSE logger_srcs ${PROJECT_SOURCE_DIR}/src/main/logger/*.cpp)
 #list(APPEND logger_srcs ${ycsb_srcs})
