@@ -211,7 +211,7 @@ void ExtractPredicates(expression::AbstractExpression* expr,
       join_predicates.emplace_back(AnnotatedExpression(
           std::shared_ptr<expression::AbstractExpression>(predicate->Copy()),
           table_alias_set));
-    else {
+    else if (table_alias_set.size() == 1 ){
       std::string table_alias = StringUtil::Lower(*(table_alias_set.begin()));
       if (single_table_predicates_map.find(table_alias) ==
           single_table_predicates_map.end())

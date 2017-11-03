@@ -15,12 +15,13 @@
 
 #include "expression/case_expression.h"
 #include "expression/tuple_value_expression.h"
+#include "expression/subquery_expression.h"
 
 namespace peloton {
 namespace binder {
 
 BindNodeVisitor::BindNodeVisitor(concurrency::Transaction *txn) : txn_(txn) {
-  context_ = nullptr;
+  context_ = std::make_shared<BinderContext>();
 }
 
 void BindNodeVisitor::BindNameToNode(parser::SQLStatement *tree) {
@@ -28,7 +29,6 @@ void BindNodeVisitor::BindNameToNode(parser::SQLStatement *tree) {
 }
 
 void BindNodeVisitor::Visit(const parser::SelectStatement *node) {
-  context_ = std::make_shared<BinderContext>();
   // Upper context should be set outside (e.g. when where contains subquery)
   //  context_->SetUpperContext(pre_context);
   if (node->from_table != nullptr) node->from_table->Accept(this);
@@ -182,6 +182,17 @@ void BindNodeVisitor::Visit(expression::CaseExpression *expr) {
   for (size_t i = 0; i < expr->GetWhenClauseSize(); ++i) {
     expr->GetWhenClauseCond(i)->Accept(this);
   }
+}
+
+void BindNodeVisitor::Visit(expression::SubqueryExpression *expr) {
+  LOG_INFO("Bind subquery: context switch...");
+  context_ = std::make_shared<BinderContext>(context_);
+  PL_ASSERT(context_->GetUpperContext() != nullptr);
+
+  expr->GetSubSelect()->Accept(this);
+
+  LOG_INFO("Bind subquery: context restore...");
+  context_ = context_->GetUpperContext();
 }
 
 }  // namespace binder
