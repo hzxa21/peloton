@@ -340,7 +340,7 @@ TEST_F(OptimizerTests, PredicatePushDownPerformanceTest) {
   for (int i=0; i<iter; i++) {
     auto tt = ExecuteQuery(query, result1);
     LOG_INFO("%fms", tt);
-    run_time1 += ExecuteQuery(query, result1);
+    run_time1 += tt;
   }
   run_time1 = run_time1 / iter;
 
@@ -350,7 +350,7 @@ TEST_F(OptimizerTests, PredicatePushDownPerformanceTest) {
   for (int i=0; i<iter; i++) {
     auto tt = ExecuteQuery(query, result2);
     LOG_INFO("%fms", tt);
-    run_time2 += ExecuteQuery(query, result2);
+    run_time2 += tt;
   }
   run_time2 = run_time2 / iter;
   LOG_INFO("Run time with predicate push-down: %fms", run_time1);
