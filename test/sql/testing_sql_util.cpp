@@ -226,10 +226,15 @@ void TestingSQLUtil::CreateTable(std::string table_name, int tuple_size, concurr
   int curr_size = 0;
   size_t bigint_size = type::Type::GetTypeSize(type::TypeId::BIGINT);
   std::vector<catalog::Column> cols;
+  bool first = true;
   while (curr_size < tuple_size) {
     auto col = catalog::Column{type::TypeId::BIGINT, bigint_size,
                                "c" + std::to_string(curr_size / bigint_size), true};
     col.AddConstraint(catalog::Constraint(ConstraintType::NOTNULL, "con_not_null"));
+    if (first) {
+      col.AddConstraint(catalog::Constraint(ConstraintType::PRIMARY, "con_primary"));
+      first = false;
+    }
     cols.push_back(col);
     curr_size += bigint_size;
   }

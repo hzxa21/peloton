@@ -320,30 +320,38 @@ TEST_F(OptimizerTests, PredicatePushDownPerformanceTest) {
   // hash table. test2 is the outer table which will probe the hash table.
   const std::string table1_name = "test1";
   const size_t table1_tuple_size = 32;
-  const size_t table1_table_size = 60000000;
+  const size_t table1_table_size = 100000000;
   const size_t bigint_size = 8;
-  double selectivity = 0.1;
+  double selectivity = 0.6;
   int iter = 3;
 
   std::vector<int> candidate_res = {};
   candidate_res = CreateAndLoadTable(table1_name, bigint_size, table1_tuple_size, table1_table_size, 0.0, candidate_res);
   std::sort(candidate_res.begin(), candidate_res.end());
-  TestingSQLUtil::ExecuteSQLQuery("CREATE INDEX c0i on test1(c0)");
   settings::SettingsManager::SetBool(settings::SettingId::codegen, false);
 
   size_t index = candidate_res.size() * selectivity;
-  // Hash on first, probe on second
+  // Hash on first, probe on second - codegen
+  // Hash on the right column of the join condition
   std::string query = StringUtil::Format("SELECT count(T1.c0) FROM test1 as T1 join test1 as T2 on T1.c0 = T2.c0 WHERE T1.c0 < %d", candidate_res[index]);
   std::vector<StatementResult> result1, result2;
+  ExecuteQuery(query, result1);
   double run_time1 = 0;
-  for (int i=0; i<iter; i++)
-      run_time1 += ExecuteQuery(query, result1);
+  for (int i=0; i<iter; i++) {
+    auto tt = ExecuteQuery(query, result1);
+    LOG_INFO("%fms", tt);
+    run_time1 += ExecuteQuery(query, result1);
+  }
   run_time1 = run_time1 / iter;
 
   settings::SettingsManager::SetBool(settings::SettingId::predicate_push_down, false);
+  ExecuteQuery(query, result2);
   double run_time2 = 0;
-  for (int i=0; i<iter; i++)
+  for (int i=0; i<iter; i++) {
+    auto tt = ExecuteQuery(query, result2);
+    LOG_INFO("%fms", tt);
     run_time2 += ExecuteQuery(query, result2);
+  }
   run_time2 = run_time2 / iter;
   LOG_INFO("Run time with predicate push-down: %fms", run_time1);
   LOG_INFO("Run time without predicate push-down: %fms", run_time2);

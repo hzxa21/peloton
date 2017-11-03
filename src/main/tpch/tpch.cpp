@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <getopt.h>
 #include <string>
+#include <sql/testing_sql_util.h>
 
 #include "benchmark/tpch/tpch_configuration.h"
 #include "benchmark/tpch/tpch_database.h"
