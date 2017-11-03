@@ -327,8 +327,10 @@ TEST_F(OptimizerTests, PredicatePushDownPerformanceTest) {
 
   std::vector<int> candidate_res = {};
   candidate_res = CreateAndLoadTable(table1_name, bigint_size, table1_tuple_size, table1_table_size, 0.0, candidate_res);
-
   std::sort(candidate_res.begin(), candidate_res.end());
+  TestingSQLUtil::ExecuteSQLQuery("CREATE INDEX c0i on test1(c0)");
+  settings::SettingsManager::SetBool(settings::SettingId::codegen, false);
+
   size_t index = candidate_res.size() * selectivity;
   // Hash on first, probe on second
   std::string query = StringUtil::Format("SELECT count(T1.c0) FROM test1 as T1 join test1 as T2 on T1.c0 = T2.c0 WHERE T1.c0 < %d", candidate_res[index]);
