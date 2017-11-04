@@ -32,6 +32,7 @@ double selectivity = 0.1;
 size_t table1_table_size = 600000;
 int iter = 3;
 bool reversed = false;
+int num_join = 1;
 
 void Usage(FILE *out) {
   fprintf(out,
@@ -40,13 +41,14 @@ void Usage(FILE *out) {
               "   -s              :  selectivity \n"
               "   -i              :  iteration \n"
               "   -r              :  reverse the order of execution \n"
+              "   -n              :  number of joins \n"
               "   -t              :  table size \n");
 }
 
 void ParseArguments(int argc, char **argv) {
   // Parse args
   while (1) {
-    int c = getopt(argc, argv, "hrs:t:");
+    int c = getopt(argc, argv, "hrs:t:n:");
 
     if (c == -1) break;
 
@@ -64,6 +66,11 @@ void ParseArguments(int argc, char **argv) {
       case 'i': {
         char *input = optarg;
         iter = (std::atoi(input));
+        break;
+      }
+      case 'n': {
+        char *input = optarg;
+        num_join = (std::atoi(input));
         break;
       }
       case 'r': {
@@ -105,7 +112,7 @@ class OptimizerTests {
     txn_manager_.CommitTransaction(txn);
   }
 
-  void CreateTable(std::string table_name, int tuple_size, concurrency::Transaction *txn) {
+  void CreateTable(std::string table_name, int tuple_size, concurrency::Transaction *txn, bool set_primary = true) {
     int curr_size = 0;
     size_t bigint_size = type::Type::GetTypeSize(type::TypeId::BIGINT);
     std::vector<catalog::Column> cols;
@@ -114,7 +121,7 @@ class OptimizerTests {
       auto col = catalog::Column{type::TypeId::BIGINT, bigint_size,
                                  "c" + std::to_string(curr_size / bigint_size), true};
       col.AddConstraint(catalog::Constraint(ConstraintType::NOTNULL, "con_not_null"));
-      if (first) {
+      if (first && set_primary) {
         col.AddConstraint(catalog::Constraint(ConstraintType::PRIMARY, "con_primary"));
         first = false;
       }
@@ -140,22 +147,22 @@ class OptimizerTests {
     txn_manager.PerformInsert(txn, tuple_slot_id, index_entry_ptr);
   }
 
-  std::vector<int> CreateAndLoadTable(std::string table_name,
-                                      size_t type_size,
+  std::vector<int> CreateAndLoadTable(size_t type_size,
                                       size_t tuple_size,
                                       size_t table_size,
                                       double join_selectivity,
                                       std::vector<int>& candidate_res) {
-    LOG_INFO("Create table %s", table_name.c_str());
     auto *txn = txn_manager_.BeginTransaction();
-    CreateTable(table_name, tuple_size, txn);
-    LOG_INFO("Load data into table %s, tuple_size = %ld, table_size = %ld",
-             table_name.c_str(), tuple_size, table_size);
+    auto table_name1 = "test1";
+    auto table_name2 = "test2";
+    CreateTable(table_name1, tuple_size, txn, true);
+    CreateTable(table_name2, tuple_size, txn, false);
     std::vector<int> res;
     std::unordered_set<int> res_set;
     size_t curr_size = 0;
     size_t val_size = (tuple_size + type_size - 1) / type_size;
-    auto *table = catalog::Catalog::GetInstance()->GetTableWithName(DEFAULT_DB_NAME, table_name, txn);
+    auto *table1 = catalog::Catalog::GetInstance()->GetTableWithName(DEFAULT_DB_NAME, table_name1, txn);
+    auto *table2 = catalog::Catalog::GetInstance()->GetTableWithName(DEFAULT_DB_NAME, table_name2, txn);
     while (curr_size < table_size) {
       // Find a unique random number
       int random;
@@ -170,9 +177,11 @@ class OptimizerTests {
         res_set.insert(random);
       }
 
-      // Insert tuple into the table
+      // Insert tuple into the table1
       std::vector<int> vals(val_size, random);
-      InsertTuple(vals, table, txn);
+      InsertTuple(vals, table1, txn);
+      InsertTuple(vals, table2, txn);
+      InsertTuple(vals, table2, txn);
 
       curr_size += tuple_size;
     }
@@ -182,7 +191,7 @@ class OptimizerTests {
   }
 
   double ExecuteQuery(std::string query) {
-    LOG_INFO("Execute query %s", query.c_str());
+    LOG_INFO("Execute query \n%s", query.c_str());
     std::unique_ptr<optimizer::AbstractOptimizer> optimizer(
         new optimizer::Optimizer());
     const std::vector<type::Value> params;
@@ -208,9 +217,11 @@ class OptimizerTests {
       timer.Stop();
       return -1;
     }
-    while (status == true) {
-      status = executor_tree->Execute();
+    while (true) {
+      if (!executor_tree->Execute())
+        break;
       std::unique_ptr<executor::LogicalTile> tile(executor_tree->GetOutput());
+      LOG_INFO("res=%s", tile->GetValue(0, 0).ToString().c_str());
     }
     CleanExecutorTree(executor_tree.get());
     timer.Stop();
@@ -223,23 +234,26 @@ class OptimizerTests {
     // Disable bloom filter in hash join
     settings::SettingsManager::SetBool(settings::SettingId::hash_join_bloom_filter, false);
 
-    // Initialize tables. test1 is the inner table from which we build the
-    // hash table. test2 is the outer table which will probe the hash table.
-    const std::string table1_name = "test1";
     const size_t table1_tuple_size = 32;
     const size_t bigint_size = 8;
 
     std::vector<int> candidate_res = {};
-    candidate_res = CreateAndLoadTable(table1_name, bigint_size, table1_tuple_size, table1_table_size, 0.0, candidate_res);
+    candidate_res = CreateAndLoadTable(bigint_size, table1_tuple_size, table1_table_size, 0.0, candidate_res);
     std::sort(candidate_res.begin(), candidate_res.end());
     settings::SettingsManager::SetBool(settings::SettingId::codegen, false);
 
     size_t index = candidate_res.size() * selectivity;
     // Hash on first, probe on second - codegen
     // Hash on the right column of the join condition
-    std::string query = StringUtil::Format("SELECT count(T1.c0) FROM test1 as T1 join test1 as T2 on T1.c0 = T2.c0 WHERE T1.c0 < %d", candidate_res[index]);
+    std::string tables = "test1 as T0";
+    for (int i=1; i<=num_join; i++) {
+      auto alias = "T" + std::to_string(i);
+      auto pre_alias = "T" + std::to_string(i-1);
+      tables += "\njoin test2 as " + alias + " on " + alias + ".c1=" + pre_alias + ".c1";
+    }
+    std::string query = StringUtil::Format("SELECT count(T0.c1) FROM \n" + tables + "\nWHERE T0.c0 < %d", candidate_res[index]);
     settings::SettingsManager::SetBool(settings::SettingId::predicate_push_down, !reversed);
-    ExecuteQuery(query);
+//    ExecuteQuery(query);
     double run_time1 = 0;
     for (int i=0; i<iter; i++) {
       auto tt = ExecuteQuery(query);
@@ -249,7 +263,7 @@ class OptimizerTests {
     run_time1 = run_time1 / iter;
 
     settings::SettingsManager::SetBool(settings::SettingId::predicate_push_down, reversed);
-    ExecuteQuery(query);
+//    ExecuteQuery(query);
     double run_time2 = 0;
     for (int i=0; i<iter; i++) {
       auto tt = ExecuteQuery(query);

@@ -52,7 +52,7 @@ void CostAndStatsCalculator::Visit(const PhysicalIndexScan *op) {
   auto predicate = op->predicate;
 
   if (predicate == nullptr) {
-    output_cost_ = 2;
+    output_cost_ = 0;
     return;
   }
 

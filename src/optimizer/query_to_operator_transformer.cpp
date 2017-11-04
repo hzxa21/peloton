@@ -45,15 +45,23 @@ QueryToOperatorTransformer::ConvertToOpExpression(parser::SQLStatement *op) {
 void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
   if (op->where_clause != nullptr) {
     // Extract single table predicates and join predicates from the where clause
-    util::ExtractPredicates(op->where_clause.get(), single_table_predicates_map,
-                            join_predicates_, enable_predicate_push_down_);
-    if (!enable_predicate_push_down_)
-      PL_ASSERT(single_table_predicates_map.empty());
+    if (enable_predicate_push_down_)
+      util::ExtractPredicates(op->where_clause.get(), single_table_predicates_map,
+                              join_predicates_, enable_predicate_push_down_);
   }
 
   if (op->from_table != nullptr) {
     // SELECT with FROM
     op->from_table->Accept(this);
+    if (!enable_predicate_push_down_) {
+      // Only for performance test. Will not work in general
+      const_cast<LogicalInnerJoin*>(
+          output_expr_->Op().As<LogicalInnerJoin>())->join_predicate =
+          std::shared_ptr<expression::AbstractExpression>(
+              new expression::ConjunctionExpression(ExpressionType::CONJUNCTION_AND, const_cast<LogicalInnerJoin*>(
+                  output_expr_->Op().As<LogicalInnerJoin>())->join_predicate.get()->Copy(),
+              op->where_clause->Copy()));
+    }
     if (op->group_by != nullptr) {
       // Make copies of groupby columns
       vector<shared_ptr<expression::AbstractExpression>> group_by_cols;
