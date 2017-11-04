@@ -27,9 +27,20 @@ void AbstractPlan::AddChild(std::unique_ptr<AbstractPlan> &&child) {
   children_.emplace_back(std::move(child));
 }
 
+std::unique_ptr<AbstractPlan> AbstractPlan::RemoveChild() {
+  std::unique_ptr<AbstractPlan> child(std::move(children_.back()));
+  children_.pop_back();
+  return child;
+}
+
 const std::vector<std::unique_ptr<AbstractPlan>> &AbstractPlan::GetChildren()
     const {
   return children_;
+}
+
+AbstractPlan *AbstractPlan::GetModifiableChild(uint32_t child_index) const {
+  PL_ASSERT(child_index < children_.size());
+  return children_[child_index].get();
 }
 
 const AbstractPlan *AbstractPlan::GetChild(uint32_t child_index) const {

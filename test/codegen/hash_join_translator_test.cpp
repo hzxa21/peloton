@@ -15,10 +15,10 @@
 #include "concurrency/transaction_manager_factory.h"
 #include "expression/comparison_expression.h"
 #include "expression/tuple_value_expression.h"
-#include "storage/table_factory.h"
 #include "planner/hash_join_plan.h"
 #include "planner/hash_plan.h"
 #include "planner/seq_scan_plan.h"
+#include "storage/table_factory.h"
 
 #include "codegen/testing_codegen_util.h"
 
@@ -89,17 +89,14 @@ TEST_F(HashJoinTranslatorTest, SingleHashJoinColumnTest) {
   std::unique_ptr<planner::HashJoinPlan> hj_plan{
       new planner::HashJoinPlan(JoinType::INNER, nullptr, std::move(projection),
                                 schema, left_hash_keys, right_hash_keys, true)};
-  std::unique_ptr<planner::HashPlan> hash_plan{
-      new planner::HashPlan(hash_keys)};
 
   std::unique_ptr<planner::AbstractPlan> left_scan{
       new planner::SeqScanPlan(&GetLeftTable(), nullptr, {0, 1, 2})};
   std::unique_ptr<planner::AbstractPlan> right_scan{
       new planner::SeqScanPlan(&GetRightTable(), nullptr, {0, 1, 2})};
 
-  hash_plan->AddChild(std::move(right_scan));
   hj_plan->AddChild(std::move(left_scan));
-  hj_plan->AddChild(std::move(hash_plan));
+  hj_plan->AddChild(std::move(right_scan));
 
   // Do binding
   planner::BindingContext context;

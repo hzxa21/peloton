@@ -57,14 +57,18 @@ class AbstractPlan : public Printable {
 
   void AddChild(std::unique_ptr<AbstractPlan> &&child);
 
+  std::unique_ptr<AbstractPlan> RemoveChild();
+
   const std::vector<std::unique_ptr<AbstractPlan>> &GetChildren() const;
 
   size_t GetChildrenSize() const { return children_.size(); }
 
+  AbstractPlan *GetModifiableChild(uint32_t child_index) const;
+
   const AbstractPlan *GetChild(uint32_t child_index) const;
 
   const AbstractPlan *GetParent() const;
-  
+
   //===--------------------------------------------------------------------===//
   // Accessors
   //===--------------------------------------------------------------------===//
@@ -75,10 +79,10 @@ class AbstractPlan : public Printable {
 
   // Setting values of the parameters in the prepare statement
   virtual void SetParameterValues(std::vector<type::Value> *values);
-  
+
   // Get the estimated cardinalities of this plan
   int GetCardinality() const { return estimated_cardinality_; }
-  
+
   // TODO: This is only for testing now. When the optimizer is ready, we should
   // delete this function and pass this information to constructor
   void SetCardinality(int cardinality) { estimated_cardinality_ = cardinality; }
@@ -97,8 +101,10 @@ class AbstractPlan : public Printable {
     }
   }
 
-  virtual void GetOutputColumns(std::vector<oid_t> &columns UNUSED_ATTRIBUTE)
-      const { return; }
+  virtual void GetOutputColumns(
+      std::vector<oid_t> &columns UNUSED_ATTRIBUTE) const {
+    return;
+  }
 
   // Get a string representation for debugging
   const std::string GetInfo() const;
@@ -131,7 +137,7 @@ class AbstractPlan : public Printable {
   std::vector<std::unique_ptr<AbstractPlan>> children_;
 
   AbstractPlan *parent_ = nullptr;
-  
+
   // TODO: This field is harded coded now. This needs to be changed when
   // optimizer has the cost model and cardinality estimation
   int estimated_cardinality_ = 500000;
