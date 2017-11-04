@@ -62,7 +62,7 @@ HashJoinTranslator::HashJoinTranslator(const planner::HashJoinPlan &join,
 
   // Prepare translators for the left and right input operators
   context.Prepare(*join_.GetChild(0), left_pipeline_);
-  context.Prepare(*join_.GetChild(1)->GetChild(0), pipeline);
+  context.Prepare(*join_.GetChild(1), pipeline);
 
   // Prepare the expressions that produce the build-size keys
   join.GetLeftHashKeys(left_key_exprs_);
@@ -151,7 +151,7 @@ void HashJoinTranslator::Produce() const {
   GetCompilationContext().Produce(*join_.GetChild(0));
 
   // Let the right child produce tuples, which we use to probe the hash table
-  GetCompilationContext().Produce(*join_.GetChild(1)->GetChild(0));
+  GetCompilationContext().Produce(*join_.GetChild(1));
 
   // That's it, we've produced all the tuples
 }

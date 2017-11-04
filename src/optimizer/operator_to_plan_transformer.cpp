@@ -664,9 +664,6 @@ unique_ptr<planner::AbstractPlan> OperatorToPlanTransformer::GenerateJoinPlan(
     vector<unique_ptr<const expression::AbstractExpression>> hash_keys;
     for (auto &expr : right_hash_keys) hash_keys.emplace_back(expr->Copy());
 
-    unique_ptr<planner::HashPlan> hash_plan(new planner::HashPlan(hash_keys));
-    hash_plan->AddChild(move(children_plans_[1]));
-
     // TODO: Right now we always enable bloom filter. Later when we have
     // cost model in place, we need to decide whether to enable bloom filter
     // based on the size of the hash table and its selectivity
@@ -676,7 +673,7 @@ unique_ptr<planner::AbstractPlan> OperatorToPlanTransformer::GenerateJoinPlan(
                                   true));
 
     join_plan->AddChild(move(children_plans_[0]));
-    join_plan->AddChild(move(hash_plan));
+    join_plan->AddChild(move(children_plans_[1]));
   } else {
     // NL Join plan use offset for join column
     vector<oid_t> left_join_col_ids, right_join_col_ids;
