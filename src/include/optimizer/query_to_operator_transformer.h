@@ -32,7 +32,29 @@ class AbstractExpression;
 namespace optimizer {
 
 class OperatorExpression;
-class ColumnManager;
+
+class SubqueryOperatorExpressionContext {
+ public:
+  SubqueryOperatorExpressionContext(
+      bool convertible,
+      std::shared_ptr<OperatorExpression> expr,
+      std::shared_ptr<expression::AbstractExpression> outer_key = nullptr,
+      std::shared_ptr<expression::AbstractExpression> inner_key = nullptr,
+      ExpressionType type = ExpressionType::COMPARE_EQUAL)
+      : is_convertible(convertible), output_expr(expr),
+        outer_query_key_expr(outer_key),
+        inner_query_key_expr(inner_key), join_condition_type(type) {}
+
+  bool is_convertible;
+  std::shared_ptr<OperatorExpression> output_expr;
+  ExpressionType join_condition_type;
+  // Store two key expression separately rather than the join condition expression
+  // because there can be restrictions on the inner key (e.g. unique, limit 1)
+  std::shared_ptr<expression::AbstractExpression> outer_query_key_expr;
+  std::shared_ptr<expression::AbstractExpression> inner_query_key_expr;
+};
+
+typedef std::vector<std::shared_ptr<SubqueryOperatorExpressionContext>> SubqueryContexts;
 
 // Transform a query from parsed statement to operator expressions.
 class QueryToOperatorTransformer : public SqlNodeVisitor {
@@ -60,14 +82,23 @@ class QueryToOperatorTransformer : public SqlNodeVisitor {
   void Visit(const parser::UpdateStatement *op) override;
   void Visit(const parser::CopyStatement *op) override;
   void Visit(const parser::AnalyzeStatement *op) override;
+  void Visit(expression::SubqueryExpression *expr) override;
+  void Visit(expression::ConjunctionExpression *expr) override;
+  void Visit(expression::OperatorExpression *expr) override;
 
   inline oid_t GetAndIncreaseGetId() { return get_id++; }
+
+  bool ConvertSubquery(expression::AbstractExpression* expr);
+  void MaybeRewriteSubqueryWithAggregation(parser::SelectStatement *select);
 
  private:
   std::shared_ptr<OperatorExpression> output_expr_;
   MultiTablePredicates join_predicates_;
   SingleTablePredicatesMap single_table_predicates_map;
   std::unordered_set<std::string> table_alias_set_;
+  std::unordered_map<int, std::vector<expression::AbstractExpression*>> predicates_by_depth_;
+  std::unordered_map<int, SubqueryContexts> subquery_by_depth_;
+  int depth_;
 
   concurrency::Transaction *txn_;
   // identifier for get operators

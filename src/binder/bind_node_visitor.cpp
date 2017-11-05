@@ -37,6 +37,7 @@ void BindNodeVisitor::Visit(const parser::SelectStatement *node) {
     node->where_clause->Accept(this);
     // Derive depth for all exprs in the where clause
     node->where_clause->DeriveDepth();
+    node->where_clause->DeriveSubqueryFlag();
   }
   if (node->order != nullptr) node->order->Accept(this);
   if (node->limit != nullptr) node->limit->Accept(this);
@@ -48,6 +49,7 @@ void BindNodeVisitor::Visit(const parser::SelectStatement *node) {
       select_element->SetDepth(context_->GetDepth());
     else
       select_element->DeriveDepth();
+    select_element->DeriveSubqueryFlag();
 
     // Recursively deduce expression value type
     expression::ExpressionUtil::EvaluateExpression({ExprMap()},

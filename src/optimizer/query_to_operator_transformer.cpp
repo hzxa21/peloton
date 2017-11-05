@@ -14,6 +14,7 @@
 #include <include/settings/settings_manager.h>
 
 #include "expression/expression_util.h"
+#include "expression/subquery_expression.h"
 
 #include "optimizer/operator_expression.h"
 #include "optimizer/operators.h"
@@ -43,12 +44,20 @@ QueryToOperatorTransformer::ConvertToOpExpression(parser::SQLStatement *op) {
 }
 
 void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
+  depth_ = op->depth;
   if (op->where_clause != nullptr) {
+    // Split by AND
+    std::vector<expression::AbstractExpression*> predicates;
+    util::SplitPredicates(op->where_clause.get(), predicates);
+    for (auto pred : predicates) {
+      if (!pred->HasSubquery() || !ConvertSubquery(pred))
+        // If the predicate does not have subquery or
+        // the subquery cannot be converted to join, we need to keep the predicate
+        predicates_by_depth_[pred->GetDepth()].push_back(pred);
+    }
     // Extract single table predicates and join predicates from the where clause
     util::ExtractPredicates(op->where_clause.get(), single_table_predicates_map,
                             join_predicates_, enable_predicate_push_down_);
-    if (!enable_predicate_push_down_)
-      PL_ASSERT(single_table_predicates_map.empty());
   }
 
   if (op->from_table != nullptr) {
@@ -327,6 +336,164 @@ void QueryToOperatorTransformer::Visit(
     UNUSED_ATTRIBUTE const parser::CopyStatement *op) {}
 void QueryToOperatorTransformer::Visit(
     UNUSED_ATTRIBUTE const parser::AnalyzeStatement *op) {}
+
+void QueryToOperatorTransformer::Visit(expression::ConjunctionExpression *expr) {
+
+}
+
+void QueryToOperatorTransformer::Visit(expression::OperatorExpression *expr) {
+
+}
+
+void QueryToOperatorTransformer::Visit(expression::SubqueryExpression *expr) {
+  auto cur_depth = depth_;
+  auto expr_depth = expr->GetDepth();
+  // Independent inner query
+  if (expr_depth > cur_depth) {
+    throw Exception("Not support independent subquery");
+  } else { // Correlated subquery
+    expr->GetSubSelect()->Accept(this);
+  }
+  depth_ = cur_depth;
+}
+
+
+//===----------------------------------------------------------------------===//
+// Helper function to convert subquery predicates
+//===----------------------------------------------------------------------===//
+void QueryToOperatorTransformer::MaybeRewriteSubqueryWithAggregation(parser::SelectStatement *select) {
+  bool is_agg = (select->group_by != nullptr);
+  if (!is_agg) {
+    for (auto &ele : select->select_list) {
+      if (expression::ExpressionUtil::IsAggregateExpression(ele.get())) {
+        is_agg = true;
+        break;
+      }
+    }
+  }
+  if (is_agg) {
+    // TODO
+  }
+}
+
+bool QueryToOperatorTransformer::ConvertSubquery(expression::AbstractExpression* expr) {
+  auto expr_type = expr->GetExpressionType();
+  auto expr_depth = expr->GetDepth();
+  if (expr_type == ExpressionType::OPERATOR_EXISTS) {
+    auto pre_predicate_size = predicates_by_depth_[depth_].size();
+    auto subquery_expr = dynamic_cast<expression::SubqueryExpression*>(expr->GetModifiableChild(0));
+    PL_ASSERT(subquery_expr != nullptr);
+    auto sub_select = subquery_expr->GetSubSelect();
+    MaybeRewriteSubqueryWithAggregation(sub_select.get());
+
+    // Get subquery operator expression tree
+    subquery_expr->Accept(this);
+
+    auto updated_predicate_size = predicates_by_depth_[depth_].size();
+    // If there are new predicates, that means the subquery
+    // has predicates correlated to the current query
+    if (updated_predicate_size > pre_predicate_size) {
+      auto& predicates = predicates_by_depth_[depth_];
+      for (auto i=pre_predicate_size; i<updated_predicate_size; i++) {
+        auto pred = predicates[i];
+        auto pred_type = pred->GetExpressionType();
+        switch (pred_type) {
+          case ExpressionType::COMPARE_EQUAL:
+          case ExpressionType::COMPARE_GREATERTHAN:
+          case ExpressionType::COMPARE_GREATERTHANOREQUALTO:
+          case ExpressionType::COMPARE_LESSTHAN:
+          case ExpressionType::COMPARE_LESSTHANOREQUALTO:
+            auto left_expr = pred->GetModifiableChild(0);
+            auto right_expr = pred->GetModifiableChild(1);
+            auto l_depth = left_expr->GetDepth();
+            auto r_depth = right_expr->GetDepth();
+            if (l_depth == r_depth) // Not a valid join predicate
+              break;
+            else if (l_depth > r_depth)
+              // Ensure the left expression is from the current depth
+              std::swap(left_expr, right_expr);
+            subquery_by_depth_[expr_depth].push_back(
+                std::make_shared<SubqueryOperatorExpressionContext>(
+                    true, output_expr_,
+                    std::shared_ptr<expression::AbstractExpression>(left_expr->Copy()),
+                    std::shared_ptr<expression::AbstractExpression>(right_expr->Copy()), pred_type));
+            // Remove the join predicate from the predicate list
+            predicates.erase(predicates.begin()+i);
+            return true;
+          default:break;
+        }
+      }
+    }
+    // Cannot find correlated predicates, transforms it into a nested iteration plan
+    subquery_by_depth_[expr_depth].push_back(
+        std::make_shared<SubqueryOperatorExpressionContext>(false, output_expr_));
+    return false;
+  } else if (expr_type == ExpressionType::COMPARE_IN) {
+    auto subquery_expr = dynamic_cast<expression::SubqueryExpression*>(expr->GetModifiableChild(1));
+    PL_ASSERT(subquery_expr != nullptr);
+    // Check select element in the subquery
+    auto sub_select = subquery_expr->GetSubSelect();
+    auto select_ele = sub_select->select_list.at(0).get();
+    if (sub_select->select_list.size() != 1 || select_ele->GetExpressionType() == ExpressionType::STAR)
+      throw Exception("Not valid select element in subquery");
+    MaybeRewriteSubqueryWithAggregation(sub_select.get());
+
+    // Get subquery operator expression tree
+    subquery_expr->Accept(this);
+
+    auto left_expr = expr->GetModifiableChild(0);
+    subquery_by_depth_[expr_depth].push_back(
+        std::make_shared<SubqueryOperatorExpressionContext>(
+            true, output_expr_,
+            std::shared_ptr<expression::AbstractExpression>(left_expr->Copy()),
+            std::shared_ptr<expression::AbstractExpression>(select_ele->Copy())));
+
+    return true;
+  } else if (expr_type == ExpressionType::COMPARE_EQUAL ||
+      expr_type == ExpressionType::COMPARE_GREATERTHAN ||
+      expr_type == ExpressionType::COMPARE_GREATERTHANOREQUALTO ||
+      expr_type == ExpressionType::COMPARE_LESSTHAN ||
+      expr_type == ExpressionType::COMPARE_LESSTHANOREQUALTO) {
+    auto left_expr = expr->GetModifiableChild(0);
+    auto right_expr = expr->GetModifiableChild(1);
+    auto is_left_sub = left_expr->GetExpressionType() == ExpressionType::ROW_SUBQUERY;
+    auto is_right_sub = right_expr->GetExpressionType() == ExpressionType::ROW_SUBQUERY;
+
+    // The expr is convertible if only one side has the subquery
+    if (is_left_sub != is_right_sub) {
+      auto join_cond_type = expr_type;
+      if (is_left_sub) {
+        std::swap(left_expr, right_expr);
+        join_cond_type = expression::ExpressionUtil::ReverseComparisonExpressionType(join_cond_type);
+      }
+      auto subquery_expr = dynamic_cast<expression::SubqueryExpression*>(right_expr);
+      PL_ASSERT(subquery_expr != nullptr);
+      // Check select element in the subquery
+      auto sub_select = subquery_expr->GetSubSelect();
+      auto select_ele = sub_select->select_list.at(0).get();
+      if (sub_select->select_list.size() != 1 || select_ele->GetExpressionType() == ExpressionType::STAR)
+        throw Exception("Not valid select element in subquery");
+
+      MaybeRewriteSubqueryWithAggregation(sub_select.get());
+
+      // Get subquery operator expression tree
+      subquery_expr->Accept(this);
+
+      subquery_by_depth_[expr_depth].push_back(
+          std::make_shared<SubqueryOperatorExpressionContext>(
+              true, output_expr_,
+              std::shared_ptr<expression::AbstractExpression>(left_expr->Copy()),
+              std::shared_ptr<expression::AbstractExpression>(select_ele->Copy()), join_cond_type));
+      return true;
+    }
+  }
+
+  // The expr is not convertible, transforms it into a nested iteration plan
+  expr->Accept(this);
+  subquery_by_depth_[expr_depth].push_back(
+      std::make_shared<SubqueryOperatorExpressionContext>(false, output_expr_));
+  return false;
+}
 
 }  // namespace optimizer
 }  // namespace peloton
