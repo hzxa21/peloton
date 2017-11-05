@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "optimizer/plan_rewrite_rule_impls.h"
+#include "planner/hash_join_plan.h"
 #include "planner/prefilter_plan.h"
 
 namespace peloton {
@@ -18,15 +19,15 @@ namespace optimizer {
 
 void RobustExecution::Rewrite(planner::AbstractPlan *root) const {
   // Insert a PrefilterPlan under all consecutive right deep hash joins
-  std::vector<planner::AbstractPlan *> hash_join_plans;
+  std::vector<planner::HashJoinPlan *> hash_join_plans;
   TraverseAndInsert(root, hash_join_plans);
 }
 
 void RobustExecution::TraverseAndInsert(
     planner::AbstractPlan *plan,
-    std::vector<planner::AbstractPlan *> &hash_join_plans) const {
+    std::vector<planner::HashJoinPlan *> &hash_join_plans) const {
   if (plan->GetPlanNodeType() == PlanNodeType::HASHJOIN) {
-    hash_join_plans.push_back(plan);
+    hash_join_plans.push_back(static_cast<planner::HashJoinPlan *>(plan));
     if (plan->GetChild(1)->GetPlanNodeType() != PlanNodeType::HASHJOIN) {
       // Consecutive right deep hash ends
       if (hash_join_plans.size() >= 2) {
@@ -35,7 +36,7 @@ void RobustExecution::TraverseAndInsert(
         auto *bottom_hash_join = hash_join_plans.back();
         auto orig_right_child = bottom_hash_join->RemoveChild();
         std::unique_ptr<planner::AbstractPlan> prefilterPlan(
-            new planner::PrefilterPLan(hash_join_plans));
+            new planner::PrefilterPlan(hash_join_plans));
         prefilterPlan->AddChild(move(orig_right_child));
         bottom_hash_join->AddChild(move(prefilterPlan));
       }

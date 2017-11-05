@@ -15,6 +15,11 @@
 #include "optimizer/plan_rewrite_rule.h"
 
 namespace peloton {
+
+namespace planner {
+class HashJoinPlan;
+}  // namespace planner
+
 namespace optimizer {
 
 // Robust Execution Optimization. When a right deep join
@@ -28,7 +33,7 @@ class RobustExecution : public PlanRewriteRule {
  private:
   void TraverseAndInsert(
       planner::AbstractPlan *plan,
-      std::vector<planner::AbstractPlan *> &hash_join_plans) const;
+      std::vector<planner::HashJoinPlan *> &hash_join_plans) const;
 };
 
 }  // namespace optimizer

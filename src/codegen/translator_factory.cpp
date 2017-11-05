@@ -19,31 +19,33 @@
 #include "codegen/expression/constant_translator.h"
 #include "codegen/expression/function_translator.h"
 #include "codegen/expression/negation_translator.h"
+#include "codegen/expression/negation_translator.h"
+#include "codegen/expression/tuple_value_translator.h"
 #include "codegen/operator/delete_translator.h"
 #include "codegen/operator/global_group_by_translator.h"
 #include "codegen/operator/hash_group_by_translator.h"
 #include "codegen/operator/hash_join_translator.h"
 #include "codegen/operator/hash_translator.h"
 #include "codegen/operator/insert_translator.h"
-#include "codegen/expression/negation_translator.h"
 #include "codegen/operator/order_by_translator.h"
+#include "codegen/operator/prefilter_translator.h"
 #include "codegen/operator/projection_translator.h"
 #include "codegen/operator/table_scan_translator.h"
-#include "codegen/expression/tuple_value_translator.h"
+#include "expression/aggregate_expression.h"
 #include "expression/case_expression.h"
 #include "expression/comparison_expression.h"
 #include "expression/conjunction_expression.h"
-#include "expression/function_expression.h"
 #include "expression/constant_value_expression.h"
+#include "expression/function_expression.h"
 #include "expression/operator_expression.h"
 #include "expression/tuple_value_expression.h"
-#include "expression/aggregate_expression.h"
 #include "planner/aggregate_plan.h"
-#include "planner/hash_plan.h"
 #include "planner/delete_plan.h"
 #include "planner/hash_join_plan.h"
+#include "planner/hash_plan.h"
 #include "planner/insert_plan.h"
 #include "planner/order_by_plan.h"
+#include "planner/prefilter_plan.h"
 #include "planner/projection_plan.h"
 #include "planner/seq_scan_plan.h"
 
@@ -77,6 +79,11 @@ std::unique_ptr<OperatorTranslator> TranslatorFactory::CreateTranslator(
     case PlanNodeType::HASH: {
       auto &hash = static_cast<const planner::HashPlan &>(plan_node);
       translator = new HashTranslator(hash, context, pipeline);
+      break;
+    }
+    case PlanNodeType::PREFILTER: {
+      auto &prefilter = static_cast<const planner::PrefilterPlan &>(plan_node);
+      translator = new PrefilterTranslator(prefilter, context, pipeline);
       break;
     }
     case PlanNodeType::AGGREGATE_V2: {

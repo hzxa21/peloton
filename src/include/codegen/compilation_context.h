@@ -17,11 +17,11 @@
 
 #include "codegen/code_context.h"
 #include "codegen/codegen.h"
-#include "codegen/runtime_state.h"
 #include "codegen/expression/expression_translator.h"
 #include "codegen/operator/operator_translator.h"
-#include "codegen/query_compiler.h"
 #include "codegen/query.h"
+#include "codegen/query_compiler.h"
+#include "codegen/runtime_state.h"
 #include "codegen/translator_factory.h"
 
 namespace peloton {
@@ -84,6 +84,8 @@ class CompilationContext {
   // Get a pointer to the executor context instance
   llvm::Value *GetExecutorContextPtr();
 
+  OperatorTranslator *GetTranslator(const planner::AbstractPlan &op) const;
+
  private:
   // Generate any auxiliary helper functions that the query needs
   void GenerateHelperFunctions();
@@ -100,7 +102,6 @@ class CompilationContext {
   // Get the registered translator for the given operator/expression
   ExpressionTranslator *GetTranslator(
       const expression::AbstractExpression &exp) const;
-  OperatorTranslator *GetTranslator(const planner::AbstractPlan &op) const;
 
  private:
   // The query we'll compile

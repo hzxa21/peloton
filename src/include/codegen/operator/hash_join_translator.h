@@ -26,11 +26,14 @@ class HashJoinPlan;
 }  // namespace planner
 
 namespace codegen {
+class PrefilterTranslator;
 
 //===----------------------------------------------------------------------===//
 // The translator for a hash-join operator
 //===----------------------------------------------------------------------===//
 class HashJoinTranslator : public OperatorTranslator {
+  friend class PrefilterTranslator;
+
  public:
   // Global/configurable variable controlling whether hash aggregations prefetch
   static std::atomic<bool> kUsePrefetch;

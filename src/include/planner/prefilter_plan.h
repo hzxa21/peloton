@@ -17,29 +17,35 @@
 namespace peloton {
 namespace planner {
 
+class HashJoinPlan;
+
 /**
  * @brief This plan is inserted into plan tree if the robust execution is
  * enabled and optimizer finds a right deep join tree subplan. It's used to
  * prefilter the tuples before probing any hash tables.
  */
-class PrefilterPLan : public AbstractPlan {
+class PrefilterPlan : public AbstractPlan {
  public:
-  PrefilterPLan(std::vector<AbstractPlan *> &hash_joins)
+  PrefilterPlan(std::vector<HashJoinPlan *> &hash_joins)
       : hash_joins_(hash_joins) {}
 
   inline PlanNodeType GetPlanNodeType() const override {
     return PlanNodeType::PREFILTER;
   }
 
+  const std::vector<HashJoinPlan *> &GetHashJoinPlans() const {
+    return hash_joins_;
+  }
+
   std::unique_ptr<AbstractPlan> Copy() const {
     // Copy does not make sense for this type of plan
-    std::vector<AbstractPlan *> hash_joins;
-    return std::unique_ptr<AbstractPlan>(new PrefilterPLan(hash_joins));
+    std::vector<HashJoinPlan *> hash_joins;
+    return std::unique_ptr<AbstractPlan>(new PrefilterPlan(hash_joins));
   }
 
  private:
   // Hash Join Plans that we should do prefeilter on.
-  std::vector<AbstractPlan *> hash_joins_;
+  std::vector<HashJoinPlan *> hash_joins_;
 };
 
 }  // namespace planner
