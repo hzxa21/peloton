@@ -14,21 +14,23 @@
 #include <cinttypes>
 
 #include "codegen/buffering_consumer.h"
-#include "codegen/query_compiler.h"
 #include "codegen/query.h"
-#include "concurrency/transaction_manager_factory.h"
+#include "codegen/query_compiler.h"
 #include "common/logger.h"
+#include "concurrency/transaction_manager_factory.h"
 #include "executor/executor_context.h"
 #include "executor/executors.h"
-#include "storage/tuple_iterator.h"
+#include "executor/plan_rewrite_rule_impls.h"
+#include "planner/plan_util.h"
 #include "settings/settings_manager.h"
+#include "storage/tuple_iterator.h"
 
 namespace peloton {
 namespace executor {
 
-executor::AbstractExecutor *BuildExecutorTree(executor::AbstractExecutor *root,
-                                              const planner::AbstractPlan *plan,
-                                              executor::ExecutorContext *executor_context);
+executor::AbstractExecutor *BuildExecutorTree(
+    executor::AbstractExecutor *root, const planner::AbstractPlan *plan,
+    executor::ExecutorContext *executor_context);
 
 void CleanExecutorTree(executor::AbstractExecutor *root);
 
@@ -40,21 +42,21 @@ void CleanExecutorTree(executor::AbstractExecutor *root);
  * value list directly rather than passing Postgres's ParamListInfo
  * @return status of execution.
  */
-void PlanExecutor::ExecutePlan(
-    std::shared_ptr<planner::AbstractPlan> plan,
-    concurrency::Transaction *txn, const std::vector<type::Value> &params,
-    std::vector<StatementResult> &result,
-    const std::vector<int> &result_format,
-    executor::ExecuteResult &p_status) {
+void PlanExecutor::ExecutePlan(std::shared_ptr<planner::AbstractPlan> plan,
+                               concurrency::Transaction *txn,
+                               const std::vector<type::Value> &params,
+                               std::vector<StatementResult> &result,
+                               const std::vector<int> &result_format,
+                               executor::ExecuteResult &p_status) {
   PL_ASSERT(plan != nullptr && txn != nullptr);
-  LOG_TRACE("PlanExecutor Start (Txn ID=%" PRId64")", txn->GetTransactionId());
+  LOG_TRACE("PlanExecutor Start (Txn ID=%" PRId64 ")", txn->GetTransactionId());
 
   result.clear();
   std::unique_ptr<executor::ExecutorContext> executor_context(
       new executor::ExecutorContext(txn, params));
 
-  if (!settings::SettingsManager::GetBool(settings::SettingId::codegen)
-      || !codegen::QueryCompiler::IsSupported(*plan)) {
+  if (!settings::SettingsManager::GetBool(settings::SettingId::codegen) ||
+      !codegen::QueryCompiler::IsSupported(*plan)) {
     bool status;
     std::unique_ptr<executor::AbstractExecutor> executor_tree(
         BuildExecutorTree(nullptr, plan.get(), executor_context.get()));
@@ -84,8 +86,9 @@ void PlanExecutor::ExecutePlan(
             auto res = StatementResult();
             PlanExecutor::copyFromTo(tuple[i], res.second);
             result.push_back(std::move(res));
-            LOG_TRACE("column content: %s",
-                      tuple[i].c_str() != nullptr ?  tuple[i].c_str() : "-emptry-");
+            LOG_TRACE("column content: %s", tuple[i].c_str() != nullptr
+                                                ? tuple[i].c_str()
+                                                : "-emptry-");
           }
         }
       }
@@ -101,6 +104,9 @@ void PlanExecutor::ExecutePlan(
   // Perform binding
   planner::BindingContext context;
   plan->PerformBinding(context);
+
+  // Plan Tree Rewrite
+  RewritePlanTree(plan.get());
 
   // Prepare output buffer
   std::vector<oid_t> columns;
@@ -131,6 +137,16 @@ void PlanExecutor::ExecutePlan(
   return;
 }
 
+void PlanExecutor::RewritePlanTree(planner::AbstractPlan *plan) {
+  std::vector<std::unique_ptr<PlanRewriteRule>> plan_rewrite_rules;
+  plan_rewrite_rules.emplace_back(new RobustExecution());
+
+  for (auto &plan_rewrite_rule : plan_rewrite_rules) {
+    plan_rewrite_rule->Rewrite(plan);
+  }
+  LOG_DEBUG("After Rewrite %s", planner::PlanUtil::GetInfo(plan).c_str());
+}
+
 // FIXME this function is here temporarily to support PelotonService
 // which should be refactorized to use ExecutePlan() above
 /**
@@ -141,9 +157,9 @@ void PlanExecutor::ExecutePlan(
  * value list directly rather than passing Postgres's ParamListInfo
  * @return number of executed tuples and logical_tile_list
  */
-int PlanExecutor::ExecutePlan(const planner::AbstractPlan *plan,
-                              const std::vector<type::Value> &params,
-                              std::vector<std::unique_ptr<executor::LogicalTile>> &logical_tile_list) {
+int PlanExecutor::ExecutePlan(
+    const planner::AbstractPlan *plan, const std::vector<type::Value> &params,
+    std::vector<std::unique_ptr<executor::LogicalTile>> &logical_tile_list) {
   PL_ASSERT(plan != nullptr);
   LOG_TRACE("PlanExecutor Start with transaction");
 
@@ -169,15 +185,14 @@ int PlanExecutor::ExecutePlan(const planner::AbstractPlan *plan,
   // Execute the tree until we get result tiles from root node
   while (status == true) {
     status = executor_tree->Execute();
-    if (status == false)
-      break;
+    if (status == false) break;
 
     std::unique_ptr<executor::LogicalTile> logical_tile(
         executor_tree->GetOutput());
     logical_tile_list.push_back(std::move(logical_tile));
   }
 
-  cleanup:
+cleanup:
   LOG_TRACE("About to commit: init_failure: %d, status: %s", init_failure,
             ResultTypeToString(txn->GetResult()).c_str());
 
@@ -205,9 +220,9 @@ int PlanExecutor::ExecutePlan(const planner::AbstractPlan *plan,
  * @param Transation context
  * @return The updated executor tree.
  */
-executor::AbstractExecutor *BuildExecutorTree(executor::AbstractExecutor *root,
-                                              const planner::AbstractPlan *plan,
-                                              executor::ExecutorContext *executor_context) {
+executor::AbstractExecutor *BuildExecutorTree(
+    executor::AbstractExecutor *root, const planner::AbstractPlan *plan,
+    executor::ExecutorContext *executor_context) {
   // Base case
   if (plan == nullptr) return root;
 
@@ -313,8 +328,8 @@ executor::AbstractExecutor *BuildExecutorTree(executor::AbstractExecutor *root,
   // Recurse
   auto &children = plan->GetChildren();
   for (auto &child : children) {
-    child_executor = BuildExecutorTree(child_executor, child.get(),
-                                       executor_context);
+    child_executor =
+        BuildExecutorTree(child_executor, child.get(), executor_context);
   }
 
   return root;

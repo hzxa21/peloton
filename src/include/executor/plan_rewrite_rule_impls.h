@@ -4,7 +4,7 @@
 //
 // plan_rewrite_rule_impls.h
 //
-// Identification: src/include/optimizer/plan_rewrite_rule_impls.h
+// Identification: src/include/executor/plan_rewrite_rule_impls.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,15 +12,14 @@
 
 #pragma once
 
-#include "optimizer/plan_rewrite_rule.h"
+#include "executor/plan_rewrite_rule.h"
 
 namespace peloton {
-
 namespace planner {
 class HashJoinPlan;
 }  // namespace planner
 
-namespace optimizer {
+namespace executor {
 
 // Robust Execution Optimization. When a right deep join
 // subplan is found, we can build a bloom filter from each inner relation and
@@ -36,5 +35,5 @@ class RobustExecution : public PlanRewriteRule {
       std::vector<planner::HashJoinPlan *> &hash_join_plans) const;
 };
 
-}  // namespace optimizer
+}  // namespace executor
 }  // namespace peloton

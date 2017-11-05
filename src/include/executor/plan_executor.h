@@ -23,6 +23,7 @@ class Transaction;
 }
 
 namespace executor {
+class PlanRewriteRule;
 
 //===----------------------------------------------------------------------===//
 // Plan Executor
@@ -72,11 +73,13 @@ class PlanExecutor {
    * pass value list directly rather than passing Postgres's ParamListInfo
    */
   static void ExecutePlan(std::shared_ptr<planner::AbstractPlan> plan,
-                                   concurrency::Transaction* txn,
-                                   const std::vector<type::Value> &params,
-                                   std::vector<StatementResult> &result,
-                                   const std::vector<int> &result_format,
-                                   executor::ExecuteResult &p_status);
+                          concurrency::Transaction *txn,
+                          const std::vector<type::Value> &params,
+                          std::vector<StatementResult> &result,
+                          const std::vector<int> &result_format,
+                          executor::ExecuteResult &p_status);
+
+  static void RewritePlanTree(planner::AbstractPlan *plan);
 
   /*
    * @brief When a peloton node recvs a query plan, this function is invoked
@@ -90,6 +93,8 @@ class PlanExecutor {
 
  private:
   DISALLOW_COPY_AND_MOVE(PlanExecutor);
+  // Rules to rewrite the final plan tree
+  static std::vector<std::unique_ptr<PlanRewriteRule>> plan_rewrite_rules;
 };
 
 }  // namespace executor

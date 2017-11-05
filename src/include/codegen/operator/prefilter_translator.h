@@ -34,7 +34,7 @@ class PrefilterTranslator : public OperatorTranslator {
                       CompilationContext &context, Pipeline &pipeline);
 
   // Codegen any initialization work for this operator
-  void InitializeState() override {}
+  void InitializeState() override;
 
   // Define any helper functions this translator needs
   void DefineAuxiliaryFunctions() override {}

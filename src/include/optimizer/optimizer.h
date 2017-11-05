@@ -17,7 +17,6 @@
 #include "optimizer/abstract_optimizer.h"
 #include "optimizer/column_manager.h"
 #include "optimizer/memo.h"
-#include "optimizer/plan_rewrite_rule.h"
 #include "optimizer/property_set.h"
 #include "optimizer/rule.h"
 
@@ -241,9 +240,6 @@ class Optimizer : public AbstractOptimizer {
 
   // Rules to transform logical plan to physical implementation
   std::vector<std::unique_ptr<Rule>> physical_implementation_rules_;
-
-  // Rules to rewrite the final plan tree
-  std::vector<std::unique_ptr<PlanRewriteRule>> plan_rewrite_rules_;
 };
 
 }  // namespace optimizer

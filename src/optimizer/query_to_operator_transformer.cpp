@@ -31,9 +31,8 @@ using std::shared_ptr;
 namespace peloton {
 namespace optimizer {
 QueryToOperatorTransformer::QueryToOperatorTransformer(
-  concurrency::Transaction *txn)
-  : txn_(txn) {}
-
+    concurrency::Transaction *txn)
+    : txn_(txn) {}
 
 std::shared_ptr<OperatorExpression>
 QueryToOperatorTransformer::ConvertToOpExpression(parser::SQLStatement *op) {
@@ -47,7 +46,8 @@ void QueryToOperatorTransformer::Visit(parser::SelectStatement *op) {
 
   if (op->where_clause != nullptr) {
     SingleTablePredicates where_predicates;
-    util::ExtractPredicates(op->where_clause.get(), where_predicates, join_predicates_);
+    util::ExtractPredicates(op->where_clause.get(), where_predicates,
+                            join_predicates_);
 
     // Remove join predicates in the where clause
     if (!join_predicates_.empty()) {
@@ -55,10 +55,8 @@ void QueryToOperatorTransformer::Visit(parser::SelectStatement *op) {
       // The select statement can only be updated in this way. This is a hack.
       ((parser::SelectStatement *)op)
           ->UpdateWhereClause(util::CombinePredicates(where_predicates));
-    }
-    else {
-      for (auto expr : where_predicates)
-        delete expr;
+    } else {
+      for (auto expr : where_predicates) delete expr;
     }
   }
 
@@ -68,17 +66,17 @@ void QueryToOperatorTransformer::Visit(parser::SelectStatement *op) {
     if (op->group_by != nullptr) {
       // Make copies of groupby columns
       vector<shared_ptr<expression::AbstractExpression>> group_by_cols;
-      for (auto& col : op->group_by->columns)
+      for (auto &col : op->group_by->columns)
         group_by_cols.emplace_back(col->Copy());
-      auto group_by = std::make_shared<OperatorExpression>(
-          LogicalGroupBy::make(move(group_by_cols), op->group_by->having.get()));
+      auto group_by = std::make_shared<OperatorExpression>(LogicalGroupBy::make(
+          move(group_by_cols), op->group_by->having.get()));
       group_by->PushChild(output_expr);
       output_expr = group_by;
     } else {
       // Check plain aggregation
       bool has_aggregation = false;
       bool has_other_exprs = false;
-      for (auto& expr : op->getSelectList()) {
+      for (auto &expr : op->getSelectList()) {
         vector<shared_ptr<expression::AggregateExpression>> aggr_exprs;
         expression::ExpressionUtil::GetAggregateExprs(aggr_exprs, expr.get());
         if (aggr_exprs.size() > 0)
@@ -91,8 +89,8 @@ void QueryToOperatorTransformer::Visit(parser::SelectStatement *op) {
       if (has_aggregation && has_other_exprs)
         throw SyntaxException(
             "Non aggregation expression must appear in the GROUP BY "
-                "clause or be used in an aggregate function");
-        // Plain aggregation
+            "clause or be used in an aggregate function");
+      // Plain aggregation
       else if (has_aggregation && !has_other_exprs) {
         auto aggregate =
             std::make_shared<OperatorExpression>(LogicalAggregate::make());
@@ -132,12 +130,11 @@ void QueryToOperatorTransformer::Visit(parser::JoinDefinition *node) {
         std::unordered_set<std::string> join_condition_table_alias_set;
         expression::ExpressionUtil::GenerateTableAliasSet(
             node->condition.get(), join_condition_table_alias_set);
-        join_predicates_.emplace_back(
-            MultiTableExpression(node->condition->Copy(), join_condition_table_alias_set));
+        join_predicates_.emplace_back(MultiTableExpression(
+            node->condition->Copy(), join_condition_table_alias_set));
       }
-      join_expr = std::make_shared<OperatorExpression>(
-          LogicalInnerJoin::make(
-              util::ConstructJoinPredicate(table_alias_set_, join_predicates_)));
+      join_expr = std::make_shared<OperatorExpression>(LogicalInnerJoin::make(
+          util::ConstructJoinPredicate(table_alias_set_, join_predicates_)));
       break;
     }
     case JoinType::OUTER: {
@@ -164,8 +161,8 @@ void QueryToOperatorTransformer::Visit(parser::JoinDefinition *node) {
       throw Exception("Join type invalid");
   }
 
-  join_expr->PushChild(left_expr);
   join_expr->PushChild(right_expr);
+  join_expr->PushChild(left_expr);
 
   output_expr = join_expr;
 }
@@ -175,11 +172,11 @@ void QueryToOperatorTransformer::Visit(parser::TableRef *node) {
     throw NotImplementedException("Not support joins");
     node->select->Accept(this);
   }
-    // Join
+  // Join
   else if (node->join != nullptr) {
     node->join->Accept(this);
   }
-    // Multiple tables
+  // Multiple tables
   else if (node->list.size() > 1) {
     node->list.at(0)->Accept(this);
     auto left_expr = output_expr;
@@ -191,32 +188,32 @@ void QueryToOperatorTransformer::Visit(parser::TableRef *node) {
 
     util::SetUnion(table_alias_set_, left_table_alias_set);
 
-    auto join_expr = std::make_shared<OperatorExpression>(
-        LogicalInnerJoin::make(
+    auto join_expr =
+        std::make_shared<OperatorExpression>(LogicalInnerJoin::make(
             util::ConstructJoinPredicate(table_alias_set_, join_predicates_)));
     join_expr->PushChild(left_expr);
     join_expr->PushChild(right_expr);
 
+    // The default join tree shape is a right deep join tree
     for (size_t i = 2; i < node->list.size(); i++) {
       node->list.at(i)->Accept(this);
       auto old_join_expr = join_expr;
-      join_expr = std::make_shared<OperatorExpression>(
-          LogicalInnerJoin::make(
-              util::ConstructJoinPredicate(table_alias_set_, join_predicates_)));
-      join_expr->PushChild(old_join_expr);
+      join_expr = std::make_shared<OperatorExpression>(LogicalInnerJoin::make(
+          util::ConstructJoinPredicate(table_alias_set_, join_predicates_)));
       join_expr->PushChild(output_expr);
+      join_expr->PushChild(old_join_expr);
     }
     output_expr = join_expr;
   }
-    // Single table
+  // Single table
   else {
-    if (node->list.size() == 1)
-      node = node->list.at(0).get();
+    if (node->list.size() == 1) node = node->list.at(0).get();
     storage::DataTable *target_table =
         catalog::Catalog::GetInstance()->GetTableWithName(
             node->GetDatabaseName(), node->GetTableName(), txn_);
     // Update table alias map
-    table_alias_set_.insert(StringUtil::Lower(std::string(node->GetTableAlias())));
+    table_alias_set_.insert(
+        StringUtil::Lower(std::string(node->GetTableAlias())));
     // Construct logical operator
     auto get_expr = std::make_shared<OperatorExpression>(
         LogicalGet::make(target_table, node->GetTableAlias()));
@@ -233,17 +230,15 @@ void QueryToOperatorTransformer::Visit(
 
 void QueryToOperatorTransformer::Visit(parser::InsertStatement *op) {
   storage::DataTable *target_table =
-      catalog::Catalog::GetInstance()->GetTableWithName(op->GetDatabaseName(),
-                                                        op->GetTableName(),
-                                                        txn_);
+      catalog::Catalog::GetInstance()->GetTableWithName(
+          op->GetDatabaseName(), op->GetTableName(), txn_);
   if (op->type == InsertType::SELECT) {
     auto insert_expr = std::make_shared<OperatorExpression>(
         LogicalInsertSelect::make(target_table));
     op->select->Accept(this);
     insert_expr->PushChild(output_expr);
     output_expr = insert_expr;
-  }
-  else {
+  } else {
     auto insert_expr = std::make_shared<OperatorExpression>(
         LogicalInsert::make(target_table, &op->columns, &op->insert_values));
     output_expr = insert_expr;

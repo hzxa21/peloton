@@ -33,6 +33,8 @@ class PrefilterPlan : public AbstractPlan {
     return PlanNodeType::PREFILTER;
   }
 
+  const std::string GetInfo() const { return "Prefilter"; }
+
   const std::vector<HashJoinPlan *> &GetHashJoinPlans() const {
     return hash_joins_;
   }

@@ -23,7 +23,6 @@
 #include "optimizer/cost_and_stats_calculator.h"
 #include "optimizer/operator_to_plan_transformer.h"
 #include "optimizer/operator_visitor.h"
-#include "optimizer/plan_rewrite_rule_impls.h"
 #include "optimizer/properties.h"
 #include "optimizer/property_enforcer.h"
 #include "optimizer/query_property_extractor.h"
@@ -79,9 +78,6 @@ Optimizer::Optimizer() {
   physical_implementation_rules_.emplace_back(new RightJoinToRightNLJoin());
   physical_implementation_rules_.emplace_back(new OuterJoinToOuterNLJoin());
   physical_implementation_rules_.emplace_back(new InnerJoinToInnerHashJoin());
-
-  // Plan Rewrite Rules
-  //  plan_rewrite_rules_.emplace_back(new RobustExecution());
 }
 
 shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
@@ -126,9 +122,6 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
     // Extract out the best plan with lowest estimated cost
     auto best_plan = ChooseBestPlan(root_id, properties, &output_expr_map);
 
-    // Rewrite Plan Tree for some optimizations
-    RewritePlanTree(best_plan);
-
     if (best_plan == nullptr) return nullptr;
     // Reset memo after finishing the optimization
     Reset();
@@ -143,12 +136,6 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
 void Optimizer::Reset() {
   memo_ = Memo();
   column_manager_ = move(ColumnManager());
-}
-
-void Optimizer::RewritePlanTree(std::unique_ptr<planner::AbstractPlan> &plan) {
-  for (auto &plan_rewrite_rule : plan_rewrite_rules_) {
-    plan_rewrite_rule->Rewrite(plan.get());
-  }
 }
 
 unique_ptr<planner::AbstractPlan> Optimizer::HandleDDLStatement(

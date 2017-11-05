@@ -23,10 +23,15 @@ PrefilterTranslator::PrefilterTranslator(
     const planner::PrefilterPlan &prefilter, CompilationContext &context,
     Pipeline &pipeline)
     : OperatorTranslator(context, pipeline), prefilter_(prefilter) {
+  // Prepare translator for the left child
+  context.Prepare(*prefilter.GetChild(0), pipeline);
+}
+
+void PrefilterTranslator::InitializeState() {
   // Extract the state id for all the bloom filter in the right deep join tree
-  for (planner::HashJoinPlan *hash_join_plan : prefilter.GetHashJoinPlans()) {
-    auto *translator =
-        context.GetTranslator(*((planner::AbstractPlan *)hash_join_plan));
+  for (planner::HashJoinPlan *hash_join_plan : prefilter_.GetHashJoinPlans()) {
+    auto *translator = GetCompilationContext().GetTranslator(
+        *((planner::AbstractPlan *)hash_join_plan));
     bloom_filter_ids_.push_back(
         static_cast<HashJoinTranslator *>(translator)->bloom_filter_id_);
   }
@@ -38,7 +43,7 @@ void PrefilterTranslator::Produce() const {
 
 void PrefilterTranslator::Consume(ConsumerContext &context,
                                   RowBatch::Row &row) const {
-  std::vector<lang::If *> nested_ifs;
+  std::vector<std::unique_ptr<lang::If>> nested_ifs;
 
   for (int i = bloom_filter_ids_.size() - 1; i >= 0; i--) {
     // Get right join keys
@@ -55,8 +60,7 @@ void PrefilterTranslator::Consume(ConsumerContext &context,
     llvm::Value *contains = bloom_filter_.Contains(
         GetCodeGen(), LoadStatePtr(bloom_filter_ids_[i]), key);
 
-    lang::If bloom_filter_pass{GetCodeGen(), contains};
-    nested_ifs.push_back(&bloom_filter_pass);
+    nested_ifs.emplace_back(new lang::If{GetCodeGen(), contains});
   }
 
   // If a tuple passes all the bloom fiters, start probing the hash tables
