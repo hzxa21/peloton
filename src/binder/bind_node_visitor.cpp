@@ -77,6 +77,7 @@ void BindNodeVisitor::Visit(const parser::TableRef *node) {
 
     // Save the previous context
     auto pre_context = context_;
+    context_ = std::make_shared<BinderContext>();
     node->select->Accept(this);
     // Restore the previous level context
     context_ = pre_context;

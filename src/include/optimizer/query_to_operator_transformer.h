@@ -38,20 +38,23 @@ class SubqueryOperatorExpressionContext {
   SubqueryOperatorExpressionContext(
       bool convertible,
       std::shared_ptr<OperatorExpression> expr,
-      std::shared_ptr<expression::AbstractExpression> outer_key = nullptr,
-      std::shared_ptr<expression::AbstractExpression> inner_key = nullptr,
+      std::unordered_set<std::string> table_alias_set,
+      expression::AbstractExpression* outer_key = nullptr,
+      expression::AbstractExpression* inner_key = nullptr,
       ExpressionType type = ExpressionType::COMPARE_EQUAL)
       : is_convertible(convertible), output_expr(expr),
+        table_alias_set(table_alias_set),
         outer_query_key_expr(outer_key),
         inner_query_key_expr(inner_key), join_condition_type(type) {}
 
   bool is_convertible;
   std::shared_ptr<OperatorExpression> output_expr;
-  ExpressionType join_condition_type;
+  std::unordered_set<std::string> table_alias_set;
   // Store two key expression separately rather than the join condition expression
   // because there can be restrictions on the inner key (e.g. unique, limit 1)
-  std::shared_ptr<expression::AbstractExpression> outer_query_key_expr;
-  std::shared_ptr<expression::AbstractExpression> inner_query_key_expr;
+  expression::AbstractExpression* outer_query_key_expr;
+  expression::AbstractExpression* inner_query_key_expr;
+  ExpressionType join_condition_type;
 };
 
 typedef std::vector<std::shared_ptr<SubqueryOperatorExpressionContext>> SubqueryContexts;
@@ -83,8 +86,6 @@ class QueryToOperatorTransformer : public SqlNodeVisitor {
   void Visit(const parser::CopyStatement *op) override;
   void Visit(const parser::AnalyzeStatement *op) override;
   void Visit(expression::SubqueryExpression *expr) override;
-  void Visit(expression::ConjunctionExpression *expr) override;
-  void Visit(expression::OperatorExpression *expr) override;
 
   inline oid_t GetAndIncreaseGetId() { return get_id++; }
 

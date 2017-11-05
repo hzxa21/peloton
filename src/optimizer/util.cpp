@@ -192,7 +192,7 @@ void GetPredicateColumns(const catalog::Schema* schema,
 }
 
 /**
- * Extract single table precates and multi-table predicates from the expr
+ * Extract single table predicates and multi-table predicates from the expr
  */
 void ExtractPredicates(expression::AbstractExpression* expr,
                        SingleTablePredicatesMap& single_table_predicates_map,
@@ -202,6 +202,17 @@ void ExtractPredicates(expression::AbstractExpression* expr,
   std::vector<expression::AbstractExpression*> predicates;
   SplitPredicates(expr, predicates);
 
+  ExtractPredicates(predicates, single_table_predicates_map,
+                    join_predicates, enable_predicate_push_down);
+}
+
+/**
+ * Extract predicates and multi-table predicates from the expr
+ */
+void ExtractPredicates(std::vector<expression::AbstractExpression*>& predicates,
+                       SingleTablePredicatesMap& single_table_predicates_map,
+                       MultiTablePredicates& join_predicates,
+                       bool enable_predicate_push_down) {
   for (auto predicate : predicates) {
     std::unordered_set<std::string> table_alias_set;
     expression::ExpressionUtil::GenerateTableAliasSet(predicate,
@@ -275,6 +286,24 @@ expression::AbstractExpression* CombinePredicates(
   for (size_t i = 2; i < predicates.size(); i++) {
     conjunction = new expression::ConjunctionExpression(
         ExpressionType::CONJUNCTION_AND, conjunction, predicates[i]->Copy());
+  }
+  return conjunction;
+}
+
+/**
+ * Combine a vector of expressions with AND
+ */
+expression::AbstractExpression* CombinePredicates(MultiTablePredicates predicates) {
+  if (predicates.empty()) return nullptr;
+
+  if (predicates.size() == 1) return predicates[0].expr->Copy();
+
+  auto conjunction = new expression::ConjunctionExpression(
+      ExpressionType::CONJUNCTION_AND, predicates[0].expr->Copy(),
+      predicates[1].expr->Copy());
+  for (size_t i = 2; i < predicates.size(); i++) {
+    conjunction = new expression::ConjunctionExpression(
+        ExpressionType::CONJUNCTION_AND, conjunction, predicates[i].expr->Copy());
   }
   return conjunction;
 }

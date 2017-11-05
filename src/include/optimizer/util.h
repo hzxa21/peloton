@@ -71,7 +71,14 @@ void SplitPredicates(expression::AbstractExpression* expr,
 expression::AbstractExpression* CombinePredicates(
     std::vector<std::shared_ptr<expression::AbstractExpression>> predicates);
 
+expression::AbstractExpression* CombinePredicates(MultiTablePredicates predicates);
+
 void ExtractPredicates(expression::AbstractExpression* expr,
+                       SingleTablePredicatesMap& where_predicates,
+                       MultiTablePredicates& join_predicates,
+                       bool enable_predicate_push_down);
+
+void ExtractPredicates(std::vector<expression::AbstractExpression*>& predicates,
                        SingleTablePredicatesMap& where_predicates,
                        MultiTablePredicates& join_predicates,
                        bool enable_predicate_push_down);
