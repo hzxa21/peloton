@@ -47,9 +47,7 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
   // Set depth of the current query
   depth_ = op->depth;
 
-  // Clear info
-  single_table_predicates_map.clear();
-  join_predicates_.clear();
+  // Clear table alias set
   table_alias_set_.clear();
 
   if (op->where_clause != nullptr) {
@@ -126,8 +124,8 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
           join_condition = new expression::ConjunctionExpression(
               ExpressionType::CONJUNCTION_AND, join_condition, predicates);
         output_expr_ = std::make_shared<OperatorExpression>(LogicalInnerJoin::make(join_condition));
-        output_expr_->PushChild(context->output_expr);
         output_expr_->PushChild(child_expr);
+        output_expr_->PushChild(context->output_expr);
       }
     }
     PL_ASSERT(join_predicates_.empty());
@@ -136,6 +134,10 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
     // SELECT without FROM
     output_expr_ = std::make_shared<OperatorExpression>(LogicalGet::make());
   }
+
+  // Clear predicate info
+  single_table_predicates_map.clear();
+  join_predicates_.clear();
 }
 void QueryToOperatorTransformer::Visit(const parser::JoinDefinition *node) {
   // Get left operator
@@ -373,13 +375,13 @@ void QueryToOperatorTransformer::Visit(
 
 void QueryToOperatorTransformer::Visit(expression::SubqueryExpression *expr) {
   auto cur_depth = depth_;
-  auto expr_depth = expr->GetDepth();
-  // Independent inner query
-  if (expr_depth > cur_depth) {
-    throw Exception("Not support independent subquery");
-  } else { // Correlated subquery
+//  auto expr_depth = expr->GetDepth();
+//  // Independent inner query
+//  if (expr_depth > cur_depth) {
+//    throw Exception("Not support independent subquery");
+//  } else { // Correlated subquery
     expr->GetSubSelect()->Accept(this);
-  }
+//  }
   depth_ = cur_depth;
 }
 

@@ -724,7 +724,7 @@ expression::AbstractExpression* PostgresParser::SubqueryExprTransform(SubLink *n
   subquery_expr->SetSubSelect(reinterpret_cast<SelectStatement*>(select_stmt));
   switch (node->subLinkType) {
     case ANY_SUBLINK: {
-      auto col_expr = ColumnRefTransform(reinterpret_cast<ColumnRef*>(node->testexpr));
+      auto col_expr = ExprTransform(node->testexpr);
       expr = new expression::ComparisonExpression(ExpressionType::COMPARE_IN, col_expr, subquery_expr);
       break;
     }
@@ -1460,7 +1460,7 @@ parser::SQLStatementList* PostgresParser::ParseSQLString(const char* text) {
   }
 
   // DEBUG only. Comment this out in release mode
-//   print_pg_parse_tree(result.tree);
+   print_pg_parse_tree(result.tree);
   parser::SQLStatementList* transform_result;
   try {
     transform_result = ListTransform(result.tree);

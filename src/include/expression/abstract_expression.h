@@ -187,7 +187,6 @@ class AbstractExpression : public Printable {
       for (auto &child : children_) {
         if (child->DeriveSubqueryFlag()) {
           has_subquery_ = true;
-          break;
         }
       }
     }

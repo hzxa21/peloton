@@ -43,6 +43,7 @@ class SubqueryExpression : public AbstractExpression {
     auto new_expr = new SubqueryExpression();
     new_expr->select_ = this->select_;
     new_expr->depth_ = this->depth_;
+    new_expr->has_subquery_ = this->has_subquery_;
     return new_expr;
   }
 

@@ -17,7 +17,6 @@
 #include "concurrency/transaction_manager_factory.h"
 #include "executor/create_executor.h"
 #include "optimizer/optimizer.h"
-#include "planner/create_plan.h"
 #include "planner/order_by_plan.h"
 #include "sql/testing_sql_util.h"
 
@@ -101,10 +100,13 @@ class OptimizerSQLTests : public PelotonTest {
                                                  error_message);
     LOG_INFO("After Exec with Opt");
     vector<string> actual_result;
-    for (unsigned i = 0; i < result.size(); i++)
-      actual_result.push_back(
-          TestingSQLUtil::GetResultValueAsString(result, i));
-
+    std::string res_str;
+    for (unsigned i = 0; i < result.size(); i++) {
+      auto res = TestingSQLUtil::GetResultValueAsString(result, i);
+      res_str += "<" + res + "> ";
+      actual_result.push_back(res);
+    }
+    LOG_INFO("Result = %s", res_str.c_str());
     EXPECT_EQ(ref_result.size(), result.size());
     if (ordered) {
       // If deterministic, do comparision with expected result in order
@@ -684,9 +686,20 @@ TEST_F(OptimizerSQLTests, QueryDerivedTableTest) {
 
 // WIP
 TEST_F(OptimizerSQLTests, NestedQueryTest) {
+  // Create extra table
+  TestingSQLUtil::ExecuteSQLQuery("CREATE TABLE test2(a int primary key, b int, c varchar(32))");
+  TestingSQLUtil::ExecuteSQLQuery("INSERT INTO test2 VALUES (1, 22, '1st');");
+  TestingSQLUtil::ExecuteSQLQuery("INSERT INTO test2 VALUES (2, 11, '2nd');");
+  TestingSQLUtil::ExecuteSQLQuery("INSERT INTO test2 VALUES (3, 33, '3rd');");
+  TestingSQLUtil::ExecuteSQLQuery("INSERT INTO test2 VALUES (5, 00, '4th');");
   TestUtil("select B.a from test as B where exists (select b as a from test where a = B.a);", {"1", "2", "3", "4"}, false);
-//  TestUtil("select (select b as a from test where a = B.a) from test as B;", {"22"}, false);
   TestUtil("select b from test where a in (select a from test as t where a = test.a)", {"11", "22", "33", "0"}, false);
+  TestUtil("select B.a from test as B where exists (select b as a from test2 where a = B.a) and "
+               "b in (select b from test where b > 22);", {"3"}, false);
+  TestUtil("select B.a from test as B where exists (select b as a from test2 where a = B.a) and "
+               "b in (select b from test) and c > 0;", {"1", "3"}, false);
+  TestUtil("select t1.a, t2.a from test as t1 join test as t2 on t1.a=t2.a "
+               "where t1.b+t2.b in (select 2*b from test2 where a > 2)", {"3", "3", "4", "4"}, false);
 
 }
 
