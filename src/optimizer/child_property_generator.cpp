@@ -73,10 +73,13 @@ void ChildPropertyGenerator::Visit(const QueryDerivedScan *op) {
         for (size_t col_idx = 0; col_idx < col_len; col_idx++) {
           auto expr = col_prop->GetColumn(col_idx);
           expression::ExpressionUtil::GetTupleValueExprs(columns, expr.get());
-          // Wrap the deep copy of the expression in a shared_ptr to avoid memory leak
-          auto copy_expr = std::shared_ptr<expression::AbstractExpression>(expr->Copy());
+          // Wrap the deep copy of the expression in a shared_ptr to avoid
+          // memory leak
+          auto copy_expr =
+              std::shared_ptr<expression::AbstractExpression>(expr->Copy());
           auto new_col = std::shared_ptr<expression::AbstractExpression>(
-              util::TransformQueryDerivedTablePredicates(op->alias_to_expr_map, copy_expr.get()));
+              util::TransformQueryDerivedTablePredicates(op->alias_to_expr_map,
+                                                         copy_expr.get()));
           new_column_exprs.push_back(new_col);
         }
         output_column_exprs.resize(columns.size());
@@ -199,13 +202,17 @@ void ChildPropertyGenerator::ScanHelper() {
 void ChildPropertyGenerator::AggregateHelper(const BaseOperatorNode *op) {
   // Get group by columns
   vector<shared_ptr<expression::AbstractExpression>> groupby_cols;
+  std::shared_ptr<expression::AbstractExpression> having;
   if (op->type() == OpType::HashGroupBy) {
     groupby_cols = ((const PhysicalHashGroupBy *)op)->columns;
+    having = ((const PhysicalHashGroupBy *)op)->having;
   } else if (op->type() == OpType::SortGroupBy) {
     groupby_cols = ((const PhysicalSortGroupBy *)op)->columns;
+    having = ((const PhysicalSortGroupBy *)op)->having;
   } else if (op->type() == OpType::Aggregate) {
     // Plain Aggregation does not have group by columns
     groupby_cols = vector<shared_ptr<expression::AbstractExpression>>();
+    having = ((const PhysicalAggregate *)op)->having;
   }
 
   PropertySet child_input_property_set;
@@ -342,6 +349,8 @@ void ChildPropertyGenerator::AggregateHelper(const BaseOperatorNode *op) {
         groupby_cols, vector<bool>(groupby_cols.size(), true)));
   }
 
+  expression::ExpressionUtil::GetAggregateExprs(provided_col, having.get());
+
   // Add child PropertyColumn
   child_input_property_set.AddProperty(make_shared<PropertyColumns>(
       vector<shared_ptr<expression::AbstractExpression>>(child_col.begin(),
@@ -461,5 +470,6 @@ void ChildPropertyGenerator::JoinHelper(const BaseOperatorNode *op) {
 
   output_.push_back(make_pair(provided_property, child_input_propertys));
 }
+
 }  // namespace optimizer
 }  // namespace peloton

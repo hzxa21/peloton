@@ -130,6 +130,12 @@ bool QueryCompiler::IsExpressionSupported(
     case ExpressionType::STAR:
     case ExpressionType::FUNCTION:
     case ExpressionType::VALUE_PARAMETER:
+    case ExpressionType::AGGREGATE_COUNT:
+    case ExpressionType::AGGREGATE_COUNT_STAR:
+    case ExpressionType::AGGREGATE_SUM:
+    case ExpressionType::AGGREGATE_MIN:
+    case ExpressionType::AGGREGATE_MAX:
+    case ExpressionType::AGGREGATE_AVG:
       return false;
     default:
       break;

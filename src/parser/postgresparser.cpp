@@ -713,24 +713,28 @@ expression::AbstractExpression* PostgresParser::AExprTransform(A_Expr* root) {
   return result;
 }
 
-expression::AbstractExpression* PostgresParser::SubqueryExprTransform(SubLink *node) {
+expression::AbstractExpression* PostgresParser::SubqueryExprTransform(
+    SubLink* node) {
   if (node == nullptr) {
     return nullptr;
   }
 
   expression::AbstractExpression* expr = nullptr;
-  auto select_stmt = SelectTransform(reinterpret_cast<SelectStmt*>(node->subselect));
+  auto select_stmt =
+      SelectTransform(reinterpret_cast<SelectStmt*>(node->subselect));
   auto subquery_expr = new expression::SubqueryExpression();
   subquery_expr->SetSubSelect(reinterpret_cast<SelectStatement*>(select_stmt));
   switch (node->subLinkType) {
     case ANY_SUBLINK: {
       auto col_expr = ExprTransform(node->testexpr);
-      expr = new expression::ComparisonExpression(ExpressionType::COMPARE_IN, col_expr, subquery_expr);
+      expr = new expression::ComparisonExpression(ExpressionType::COMPARE_IN,
+                                                  col_expr, subquery_expr);
       break;
     }
     case EXISTS_SUBLINK: {
-      expr = new expression::OperatorExpression(ExpressionType::OPERATOR_EXISTS, type::TypeId::BOOLEAN, subquery_expr,
-                                                nullptr);
+      expr = new expression::OperatorExpression(ExpressionType::OPERATOR_EXISTS,
+                                                type::TypeId::BOOLEAN,
+                                                subquery_expr, nullptr);
       break;
     }
     case EXPR_SUBLINK: {
@@ -1460,7 +1464,7 @@ parser::SQLStatementList* PostgresParser::ParseSQLString(const char* text) {
   }
 
   // DEBUG only. Comment this out in release mode
-   print_pg_parse_tree(result.tree);
+  //   print_pg_parse_tree(result.tree);
   parser::SQLStatementList* transform_result;
   try {
     transform_result = ListTransform(result.tree);

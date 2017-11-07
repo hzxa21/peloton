@@ -90,7 +90,8 @@ class AbstractExpression : public Printable {
   void SetChild(int index, AbstractExpression *expr) {
     if (index >= (int)children_.size()) {
       children_.resize(index + 1);
-    }
+    } else if (children_[index].get() == expr)
+      return;
     children_[index].reset(expr);
   }
 
@@ -214,7 +215,7 @@ class AbstractExpression : public Printable {
         exp_type_(other.exp_type_),
         return_value_type_(other.return_value_type_),
         has_parameter_(other.has_parameter_),
-        depth_(other.depth_){
+        depth_(other.depth_) {
     for (auto &child : other.children_) {
       children_.push_back(std::unique_ptr<AbstractExpression>(child->Copy()));
     }

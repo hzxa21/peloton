@@ -29,6 +29,7 @@
 #include "codegen/operator/projection_translator.h"
 #include "codegen/operator/table_scan_translator.h"
 #include "codegen/expression/tuple_value_translator.h"
+#include "codegen/expression/aggregation_translator.h"
 #include "expression/case_expression.h"
 #include "expression/conjunction_expression.h"
 #include "expression/function_expression.h"
@@ -127,6 +128,16 @@ std::unique_ptr<ExpressionTranslator> TranslatorFactory::CreateTranslator(
       auto &tve_exp =
           static_cast<const expression::TupleValueExpression &>(exp);
       translator = new TupleValueTranslator(tve_exp, context);
+      break;
+    }
+    case ExpressionType::AGGREGATE_COUNT:
+    case ExpressionType::AGGREGATE_COUNT_STAR:
+    case ExpressionType::AGGREGATE_SUM:
+    case ExpressionType::AGGREGATE_MIN:
+    case ExpressionType::AGGREGATE_MAX:
+    case ExpressionType::AGGREGATE_AVG: {
+      auto &agg_exp = static_cast<const expression::AggregateExpression &>(exp);
+      translator = new AggregationTranslator(agg_exp, context);
       break;
     }
     case ExpressionType::COMPARE_EQUAL:

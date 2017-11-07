@@ -387,7 +387,9 @@ bool LogicalAggregateToPhysical::Check(
 void LogicalAggregateToPhysical::Transform(
     std::shared_ptr<OperatorExpression> input,
     std::vector<std::shared_ptr<OperatorExpression>> &transformed) const {
-  auto result = std::make_shared<OperatorExpression>(PhysicalAggregate::make());
+  auto input_agg = input->Op().As<LogicalAggregate>();
+  auto result = std::make_shared<OperatorExpression>(
+      PhysicalAggregate::make(input_agg->having));
   PL_ASSERT(input->Children().size() == 1);
   result->PushChild(input->Children().at(0));
   transformed.push_back(result);

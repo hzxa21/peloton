@@ -36,28 +36,31 @@ class OperatorExpression;
 class SubqueryOperatorExpressionContext {
  public:
   SubqueryOperatorExpressionContext(
-      bool convertible,
-      std::shared_ptr<OperatorExpression> expr,
+      bool convertible, std::shared_ptr<OperatorExpression> expr,
       std::unordered_set<std::string> table_alias_set,
-      expression::AbstractExpression* outer_key = nullptr,
-      expression::AbstractExpression* inner_key = nullptr,
+      expression::AbstractExpression *outer_key = nullptr,
+      expression::AbstractExpression *inner_key = nullptr,
       ExpressionType type = ExpressionType::COMPARE_EQUAL)
-      : is_convertible(convertible), output_expr(expr),
+      : is_convertible(convertible),
+        output_expr(expr),
         table_alias_set(table_alias_set),
         outer_query_key_expr(outer_key),
-        inner_query_key_expr(inner_key), join_condition_type(type) {}
+        inner_query_key_expr(inner_key),
+        join_condition_type(type) {}
 
   bool is_convertible;
   std::shared_ptr<OperatorExpression> output_expr;
   std::unordered_set<std::string> table_alias_set;
-  // Store two key expression separately rather than the join condition expression
+  // Store two key expression separately rather than the join condition
+  // expression
   // because there can be restrictions on the inner key (e.g. unique, limit 1)
-  expression::AbstractExpression* outer_query_key_expr;
-  expression::AbstractExpression* inner_query_key_expr;
+  expression::AbstractExpression *outer_query_key_expr;
+  expression::AbstractExpression *inner_query_key_expr;
   ExpressionType join_condition_type;
 };
 
-typedef std::vector<std::shared_ptr<SubqueryOperatorExpressionContext>> SubqueryContexts;
+typedef std::vector<std::shared_ptr<SubqueryOperatorExpressionContext>>
+    SubqueryContexts;
 
 // Transform a query from parsed statement to operator expressions.
 class QueryToOperatorTransformer : public SqlNodeVisitor {
@@ -89,15 +92,19 @@ class QueryToOperatorTransformer : public SqlNodeVisitor {
 
   inline oid_t GetAndIncreaseGetId() { return get_id++; }
 
-  bool ConvertSubquery(expression::AbstractExpression* expr);
+  // Helper functions
+  bool ConvertSubquery(expression::AbstractExpression *expr);
   void MaybeRewriteSubqueryWithAggregation(parser::SelectStatement *select);
+  std::shared_ptr<expression::AbstractExpression> GenerateHavingPredicate(
+      expression::AbstractExpression *having_expr = nullptr);
 
  private:
   std::shared_ptr<OperatorExpression> output_expr_;
   MultiTablePredicates join_predicates_;
   SingleTablePredicatesMap single_table_predicates_map;
   std::unordered_set<std::string> table_alias_set_;
-  std::unordered_map<int, std::vector<expression::AbstractExpression*>> predicates_by_depth_;
+  std::unordered_map<int, std::vector<expression::AbstractExpression *>>
+      predicates_by_depth_;
   std::unordered_map<int, SubqueryContexts> subquery_by_depth_;
   int depth_;
 
@@ -105,8 +112,6 @@ class QueryToOperatorTransformer : public SqlNodeVisitor {
   // identifier for get operators
   oid_t get_id;
   bool enable_predicate_push_down_;
-
-
 };
 
 }  // namespace optimizer

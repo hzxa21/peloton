@@ -289,7 +289,7 @@ void OperatorToPlanTransformer::Visit(const PhysicalHashGroupBy *op) {
   PL_ASSERT(col_prop != nullptr);
 
   output_plan_ = GenerateAggregatePlan(col_prop, AggregateType::HASH,
-                                       &op->columns, op->having);
+                                       &op->columns, op->having.get());
 }
 
 void OperatorToPlanTransformer::Visit(const PhysicalSortGroupBy *op) {
@@ -299,17 +299,17 @@ void OperatorToPlanTransformer::Visit(const PhysicalSortGroupBy *op) {
   PL_ASSERT(col_prop != nullptr);
 
   output_plan_ = GenerateAggregatePlan(col_prop, AggregateType::SORTED,
-                                       &op->columns, op->having);
+                                       &op->columns, op->having.get());
 }
 
-void OperatorToPlanTransformer::Visit(const PhysicalAggregate *) {
+void OperatorToPlanTransformer::Visit(const PhysicalAggregate *op) {
   auto col_prop = requirements_->GetPropertyOfType(PropertyType::COLUMNS)
                       ->As<PropertyColumns>();
 
   PL_ASSERT(col_prop != nullptr);
 
-  output_plan_ =
-      GenerateAggregatePlan(col_prop, AggregateType::PLAIN, nullptr, nullptr);
+  output_plan_ = GenerateAggregatePlan(col_prop, AggregateType::PLAIN, nullptr,
+                                       op->having.get());
 }
 
 void OperatorToPlanTransformer::Visit(const PhysicalDistinct *) {
@@ -509,7 +509,11 @@ OperatorToPlanTransformer::GenerateAggregatePlan(
     const std::vector<std::shared_ptr<expression::AbstractExpression>> *
         group_by_exprs,
     expression::AbstractExpression *having) {
+  PL_ASSERT(children_expr_map_.size() == 1);
   auto child_expr_map = children_expr_map_[0];
+
+  // Use an additional child expr map to store expr info for agg expr
+  children_expr_map_.push_back(ExprMap());
 
   vector<planner::AggregatePlan::AggTerm> agg_terms;
   vector<catalog::Column> output_schema_columns;
@@ -529,11 +533,15 @@ OperatorToPlanTransformer::GenerateAggregatePlan(
             expr->GetExpressionType())) {
       // For AggregateExpr, add aggregate term
       auto agg_expr = (expression::AggregateExpression *)expr.get();
+      agg_expr->SetValueIdx(agg_id, 1);
+      children_expr_map_[1][expr] = agg_id++;
+
       auto agg_col = expr->GetModifiableChild(0);
 
       // Maps the aggregate value in the right tuple to the output.
       // See aggregator.cpp for more info.
-      dml.emplace_back(col_pos, make_pair(1, agg_id++));
+      dml.emplace_back(
+          col_pos, make_pair(agg_expr->GetTupleIdx(), agg_expr->GetValueIdx()));
       planner::AggregatePlan::AggTerm agg_term(
           agg_expr->GetExpressionType(),
           agg_col == nullptr ? nullptr : agg_col->Copy(), agg_expr->distinct_);
@@ -680,8 +688,8 @@ unique_ptr<planner::AbstractPlan> OperatorToPlanTransformer::GenerateJoinPlan(
     // based on the size of the hash table and its selectivity
     join_plan = unique_ptr<planner::AbstractPlan>(new planner::HashJoinPlan(
         join_type, move(predicate), move(proj_info), schema_ptr, left_hash_keys,
-        right_hash_keys,
-        settings::SettingsManager::GetBool(settings::SettingId::hash_join_bloom_filter)));
+        right_hash_keys, settings::SettingsManager::GetBool(
+                             settings::SettingId::hash_join_bloom_filter)));
 
     join_plan->AddChild(move(children_plans_[0]));
     join_plan->AddChild(move(hash_plan));

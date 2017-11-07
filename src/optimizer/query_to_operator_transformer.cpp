@@ -34,8 +34,10 @@ namespace peloton {
 namespace optimizer {
 QueryToOperatorTransformer::QueryToOperatorTransformer(
     concurrency::Transaction *txn)
-    : txn_(txn), get_id(0),
-      enable_predicate_push_down_(settings::SettingsManager::GetBool(settings::SettingId::predicate_push_down)) {}
+    : txn_(txn),
+      get_id(0),
+      enable_predicate_push_down_(settings::SettingsManager::GetBool(
+          settings::SettingId::predicate_push_down)) {}
 std::shared_ptr<OperatorExpression>
 QueryToOperatorTransformer::ConvertToOpExpression(parser::SQLStatement *op) {
   output_expr_ = nullptr;
@@ -50,80 +52,96 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
   // Clear table alias set
   table_alias_set_.clear();
 
+  // TODO:: Separate the following codes into different handler function for
+  // different clause
+  // Generate aggregation operator first
+  std::shared_ptr<OperatorExpression> agg_operator = nullptr;
+  if (op->group_by != nullptr) {
+    // Make copies of groupby columns
+    vector<shared_ptr<expression::AbstractExpression>> group_by_cols;
+    for (auto &col : op->group_by->columns)
+      group_by_cols.emplace_back(col->Copy());
+    auto having = GenerateHavingPredicate(op->group_by->having.get());
+    agg_operator = std::make_shared<OperatorExpression>(
+        LogicalGroupBy::make(move(group_by_cols), having));
+  } else {
+    // Check plain aggregation
+    bool has_aggregation = false;
+    bool has_other_exprs = false;
+    for (auto &expr : op->getSelectList()) {
+      vector<shared_ptr<expression::AggregateExpression>> aggr_exprs;
+      expression::ExpressionUtil::GetAggregateExprs(aggr_exprs, expr.get());
+      if (aggr_exprs.size() > 0)
+        has_aggregation = true;
+      else
+        has_other_exprs = true;
+    }
+    // Syntax error when there are mixture of aggregation and other exprs
+    // when group by is absent
+    if (has_aggregation && has_other_exprs)
+      throw SyntaxException(
+          "Non aggregation expression must appear in the GROUP BY "
+          "clause or be used in an aggregate function");
+    // Plain aggregation
+    else if (has_aggregation && !has_other_exprs) {
+      auto having = GenerateHavingPredicate();
+      agg_operator =
+          std::make_shared<OperatorExpression>(LogicalAggregate::make(having));
+    }
+  }
+
   if (op->where_clause != nullptr) {
     // Split by AND
-    std::vector<expression::AbstractExpression*> predicates;
+    std::vector<expression::AbstractExpression *> predicates;
     util::SplitPredicates(op->where_clause.get(), predicates);
     for (auto pred : predicates) {
       if (!pred->HasSubquery() || !ConvertSubquery(pred))
         // If the predicate does not have subquery or
-        // the subquery cannot be converted to join, we need to keep the predicate
+        // the subquery cannot be converted to join, we need to keep the
+        // predicate
         predicates_by_depth_[pred->GetDepth()].push_back(pred);
     }
     // Extract single table predicates and join predicates from the where clause
-    util::ExtractPredicates(predicates_by_depth_[depth_], single_table_predicates_map,
-                            join_predicates_, enable_predicate_push_down_);
-    PL_ASSERT(single_table_predicates_map.size() + join_predicates_.size()
-                  == predicates_by_depth_[depth_].size());
+    util::ExtractPredicates(predicates_by_depth_[depth_],
+                            single_table_predicates_map, join_predicates_,
+                            enable_predicate_push_down_);
+    PL_ASSERT(single_table_predicates_map.size() + join_predicates_.size() ==
+              predicates_by_depth_[depth_].size());
     // Clear predicate info of the current query
     predicates_by_depth_[depth_].clear();
   }
 
   if (op->from_table != nullptr) {
     // SELECT with FROM
+
     op->from_table->Accept(this);
-    if (op->group_by != nullptr) {
-      // Make copies of groupby columns
-      vector<shared_ptr<expression::AbstractExpression>> group_by_cols;
-      for (auto &col : op->group_by->columns)
-        group_by_cols.emplace_back(col->Copy());
-      auto group_by = std::make_shared<OperatorExpression>(LogicalGroupBy::make(
-          move(group_by_cols), op->group_by->having.get()));
-      group_by->PushChild(output_expr_);
-      output_expr_ = group_by;
-    } else {
-      // Check plain aggregation
-      bool has_aggregation = false;
-      bool has_other_exprs = false;
-      for (auto &expr : op->getSelectList()) {
-        vector<shared_ptr<expression::AggregateExpression>> aggr_exprs;
-        expression::ExpressionUtil::GetAggregateExprs(aggr_exprs, expr.get());
-        if (aggr_exprs.size() > 0)
-          has_aggregation = true;
-        else
-          has_other_exprs = true;
-      }
-      // Syntax error when there are mixture of aggregation and other exprs
-      // when group by is absent
-      if (has_aggregation && has_other_exprs)
-        throw SyntaxException(
-            "Non aggregation expression must appear in the GROUP BY "
-            "clause or be used in an aggregate function");
-      // Plain aggregation
-      else if (has_aggregation && !has_other_exprs) {
-        auto aggregate =
-            std::make_shared<OperatorExpression>(LogicalAggregate::make());
-        aggregate->PushChild(output_expr_);
-        output_expr_ = aggregate;
-      }
+
+    if (agg_operator != nullptr) {
+      agg_operator->PushChild(output_expr_);
+      output_expr_ = agg_operator;
     }
 
     // Handle subquery operator trees
-    auto& subquery_contexts = subquery_by_depth_[depth_];
-    for (auto& context : subquery_contexts) {
+    auto &subquery_contexts = subquery_by_depth_[depth_];
+    for (auto &context : subquery_contexts) {
       util::SetUnion(table_alias_set_, context->table_alias_set);
       if (!context->is_convertible) {
         // TODO
         throw Exception("Subquery not convertible");
       } else {
         auto child_expr = output_expr_;
-        expression::AbstractExpression* join_condition = new expression::ComparisonExpression(context->join_condition_type,
-            context->outer_query_key_expr->Copy(), context->inner_query_key_expr->Copy());
-        auto predicates = util::ConstructJoinPredicate(table_alias_set_, join_predicates_);
+        expression::AbstractExpression *join_condition =
+            new expression::ComparisonExpression(
+                context->join_condition_type,
+                context->outer_query_key_expr->Copy(),
+                context->inner_query_key_expr->Copy());
+        auto predicates =
+            util::ConstructJoinPredicate(table_alias_set_, join_predicates_);
         if (predicates != nullptr)
           join_condition = new expression::ConjunctionExpression(
               ExpressionType::CONJUNCTION_AND, join_condition, predicates);
-        output_expr_ = std::make_shared<OperatorExpression>(LogicalInnerJoin::make(join_condition));
+        output_expr_ = std::make_shared<OperatorExpression>(
+            LogicalInnerJoin::make(join_condition));
         output_expr_->PushChild(child_expr);
         output_expr_->PushChild(context->output_expr);
       }
@@ -219,7 +237,6 @@ void QueryToOperatorTransformer::Visit(const parser::TableRef *node) {
     auto alias_to_expr_map =
         util::ConstructSelectElementMap(node->select->select_list);
     auto predicates = pre_single_table_predicates_map[table_alias];
-    std::vector<expression::AbstractExpression *> transformed_predicates;
     for (auto &original_predicate : predicates) {
       util::ExtractPredicates(util::TransformQueryDerivedTablePredicates(
                                   alias_to_expr_map, original_predicate.get()),
@@ -375,21 +392,51 @@ void QueryToOperatorTransformer::Visit(
 
 void QueryToOperatorTransformer::Visit(expression::SubqueryExpression *expr) {
   auto cur_depth = depth_;
-//  auto expr_depth = expr->GetDepth();
-//  // Independent inner query
-//  if (expr_depth > cur_depth) {
-//    throw Exception("Not support independent subquery");
-//  } else { // Correlated subquery
-    expr->GetSubSelect()->Accept(this);
-//  }
+  //  auto expr_depth = expr->GetDepth();
+  //  // Independent inner query
+  //  if (expr_depth > cur_depth) {
+  //    throw Exception("Not support independent subquery");
+  //  } else { // Correlated subquery
+  expr->GetSubSelect()->Accept(this);
+  //  }
   depth_ = cur_depth;
 }
 
+//===----------------------------------------------------------------------===//
+// Aggregation helper functions
+//===----------------------------------------------------------------------===//
+std::shared_ptr<expression::AbstractExpression>
+QueryToOperatorTransformer::GenerateHavingPredicate(
+    expression::AbstractExpression *having_expr) {
+  auto having_predicates =
+      std::vector<shared_ptr<expression::AbstractExpression>>();
+  if (having_expr != nullptr) {
+    having_predicates.push_back(
+        std::shared_ptr<expression::AbstractExpression>(having_expr->Copy()));
+  }
+  for (auto &entry : single_table_predicates_map)
+    for (auto &pred : entry.second) having_predicates.emplace_back(pred);
+  for (auto &expr : join_predicates_) having_predicates.emplace_back(expr.expr);
+
+  std::shared_ptr<expression::AbstractExpression> having = nullptr;
+  if (having_predicates.size() == 1)
+    having = having_predicates[0];
+  else
+    std::shared_ptr<expression::AbstractExpression>(
+        util::CombinePredicates(having_predicates));
+
+  // Clear the predicates
+  single_table_predicates_map.clear();
+  join_predicates_.clear();
+
+  return having;
+}
 
 //===----------------------------------------------------------------------===//
-// Helper function to convert subquery predicates
+// Subquery helper functions
 //===----------------------------------------------------------------------===//
-void QueryToOperatorTransformer::MaybeRewriteSubqueryWithAggregation(parser::SelectStatement *select) {
+void QueryToOperatorTransformer::MaybeRewriteSubqueryWithAggregation(
+    parser::SelectStatement *select) {
   bool is_agg = (select->group_by != nullptr);
   if (!is_agg) {
     for (auto &ele : select->select_list) {
@@ -404,12 +451,14 @@ void QueryToOperatorTransformer::MaybeRewriteSubqueryWithAggregation(parser::Sel
   }
 }
 
-bool QueryToOperatorTransformer::ConvertSubquery(expression::AbstractExpression* expr) {
+bool QueryToOperatorTransformer::ConvertSubquery(
+    expression::AbstractExpression *expr) {
   auto expr_type = expr->GetExpressionType();
   auto expr_depth = expr->GetDepth();
   if (expr_type == ExpressionType::OPERATOR_EXISTS) {
     auto pre_predicate_size = predicates_by_depth_[depth_].size();
-    auto subquery_expr = dynamic_cast<expression::SubqueryExpression*>(expr->GetModifiableChild(0));
+    auto subquery_expr = dynamic_cast<expression::SubqueryExpression *>(
+        expr->GetModifiableChild(0));
     PL_ASSERT(subquery_expr != nullptr);
     auto sub_select = subquery_expr->GetSubSelect();
     MaybeRewriteSubqueryWithAggregation(sub_select.get());
@@ -421,8 +470,8 @@ bool QueryToOperatorTransformer::ConvertSubquery(expression::AbstractExpression*
     // If there are new predicates, that means the subquery
     // has predicates correlated to the current query
     if (updated_predicate_size > pre_predicate_size) {
-      auto& predicates = predicates_by_depth_[depth_];
-      for (auto i=pre_predicate_size; i<updated_predicate_size; i++) {
+      auto &predicates = predicates_by_depth_[depth_];
+      for (auto i = pre_predicate_size; i < updated_predicate_size; i++) {
         auto pred = predicates[i];
         auto pred_type = pred->GetExpressionType();
         switch (pred_type) {
@@ -435,35 +484,43 @@ bool QueryToOperatorTransformer::ConvertSubquery(expression::AbstractExpression*
             auto right_expr = pred->GetModifiableChild(1);
             auto l_depth = left_expr->GetDepth();
             auto r_depth = right_expr->GetDepth();
-            if (l_depth == r_depth) // Not a valid join predicate
+            if (l_depth == r_depth)  // Not a valid join predicate
               break;
             else if (l_depth > r_depth) {
               // Ensure the left expression is from the current depth
               std::swap(left_expr, right_expr);
-              pred_type = expression::ExpressionUtil::ReverseComparisonExpressionType(pred_type);
+              pred_type =
+                  expression::ExpressionUtil::ReverseComparisonExpressionType(
+                      pred_type);
             }
             subquery_by_depth_[expr_depth].push_back(
                 std::make_shared<SubqueryOperatorExpressionContext>(
-                    true, output_expr_, table_alias_set_, left_expr, right_expr, pred_type));
+                    true, output_expr_, table_alias_set_, left_expr, right_expr,
+                    pred_type));
             // Remove the join predicate from the predicate list
             predicates.erase(predicates.begin() + i);
             return true;
           }
-          default:;
+          default:
+            ;
         }
       }
     }
-    // Cannot find correlated predicates, transforms it into a nested iteration plan
+    // Cannot find correlated predicates, transforms it into a nested iteration
+    // plan
     subquery_by_depth_[expr_depth].push_back(
-        std::make_shared<SubqueryOperatorExpressionContext>(false, output_expr_, table_alias_set_));
+        std::make_shared<SubqueryOperatorExpressionContext>(false, output_expr_,
+                                                            table_alias_set_));
     return false;
   } else if (expr_type == ExpressionType::COMPARE_IN) {
-    auto subquery_expr = dynamic_cast<expression::SubqueryExpression*>(expr->GetModifiableChild(1));
+    auto subquery_expr = dynamic_cast<expression::SubqueryExpression *>(
+        expr->GetModifiableChild(1));
     PL_ASSERT(subquery_expr != nullptr);
     // Check select element in the subquery
     auto sub_select = subquery_expr->GetSubSelect();
     auto select_ele = sub_select->select_list.at(0).get();
-    if (sub_select->select_list.size() != 1 || select_ele->GetExpressionType() == ExpressionType::STAR)
+    if (sub_select->select_list.size() != 1 ||
+        select_ele->GetExpressionType() == ExpressionType::STAR)
       throw Exception("Not valid select element in subquery");
     MaybeRewriteSubqueryWithAggregation(sub_select.get());
 
@@ -477,28 +534,34 @@ bool QueryToOperatorTransformer::ConvertSubquery(expression::AbstractExpression*
 
     return true;
   } else if (expr_type == ExpressionType::COMPARE_EQUAL ||
-      expr_type == ExpressionType::COMPARE_GREATERTHAN ||
-      expr_type == ExpressionType::COMPARE_GREATERTHANOREQUALTO ||
-      expr_type == ExpressionType::COMPARE_LESSTHAN ||
-      expr_type == ExpressionType::COMPARE_LESSTHANOREQUALTO) {
+             expr_type == ExpressionType::COMPARE_GREATERTHAN ||
+             expr_type == ExpressionType::COMPARE_GREATERTHANOREQUALTO ||
+             expr_type == ExpressionType::COMPARE_LESSTHAN ||
+             expr_type == ExpressionType::COMPARE_LESSTHANOREQUALTO) {
     auto left_expr = expr->GetModifiableChild(0);
     auto right_expr = expr->GetModifiableChild(1);
-    auto is_left_sub = left_expr->GetExpressionType() == ExpressionType::ROW_SUBQUERY;
-    auto is_right_sub = right_expr->GetExpressionType() == ExpressionType::ROW_SUBQUERY;
+    auto is_left_sub =
+        left_expr->GetExpressionType() == ExpressionType::ROW_SUBQUERY;
+    auto is_right_sub =
+        right_expr->GetExpressionType() == ExpressionType::ROW_SUBQUERY;
 
     // The expr is convertible if only one side has the subquery
     if (is_left_sub != is_right_sub) {
       auto join_cond_type = expr_type;
       if (is_left_sub) {
         std::swap(left_expr, right_expr);
-        join_cond_type = expression::ExpressionUtil::ReverseComparisonExpressionType(join_cond_type);
+        join_cond_type =
+            expression::ExpressionUtil::ReverseComparisonExpressionType(
+                join_cond_type);
       }
-      auto subquery_expr = dynamic_cast<expression::SubqueryExpression*>(right_expr);
+      auto subquery_expr =
+          dynamic_cast<expression::SubqueryExpression *>(right_expr);
       PL_ASSERT(subquery_expr != nullptr);
       // Check select element in the subquery
       auto sub_select = subquery_expr->GetSubSelect();
       auto select_ele = sub_select->select_list.at(0).get();
-      if (sub_select->select_list.size() != 1 || select_ele->GetExpressionType() == ExpressionType::STAR)
+      if (sub_select->select_list.size() != 1 ||
+          select_ele->GetExpressionType() == ExpressionType::STAR)
         throw Exception("Not valid select element in subquery");
 
       MaybeRewriteSubqueryWithAggregation(sub_select.get());
@@ -508,7 +571,8 @@ bool QueryToOperatorTransformer::ConvertSubquery(expression::AbstractExpression*
 
       subquery_by_depth_[expr_depth].push_back(
           std::make_shared<SubqueryOperatorExpressionContext>(
-              true, output_expr_, table_alias_set_, left_expr, select_ele, join_cond_type));
+              true, output_expr_, table_alias_set_, left_expr, select_ele,
+              join_cond_type));
       return true;
     }
   }
@@ -516,7 +580,8 @@ bool QueryToOperatorTransformer::ConvertSubquery(expression::AbstractExpression*
   // The expr is not convertible, transforms it into a nested iteration plan
   expr->Accept(this);
   subquery_by_depth_[expr_depth].push_back(
-      std::make_shared<SubqueryOperatorExpressionContext>(false, output_expr_, table_alias_set_));
+      std::make_shared<SubqueryOperatorExpressionContext>(false, output_expr_,
+                                                          table_alias_set_));
   return false;
 }
 

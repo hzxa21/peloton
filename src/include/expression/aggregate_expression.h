@@ -74,25 +74,37 @@ class AggregateExpression : public AbstractExpression {
       const AbstractTuple* tuple1, UNUSED_ATTRIBUTE const AbstractTuple* tuple2,
       UNUSED_ATTRIBUTE executor::ExecutorContext* context) const override {
     // for now support only one child
-    PL_ASSERT(tuple1 != nullptr);
-    return tuple1->GetValue(value_idx_);
+    PL_ASSERT(tuple_idx_ != -1);
+    const AbstractTuple* tuple = tuple_idx_ == 0 ? tuple1 : tuple2;
+    PL_ASSERT(tuple != nullptr);
+    return tuple->GetValue(value_idx_);
   }
 
   // Attribute binding
-  void PerformBinding(const std::vector<const planner::BindingContext *> &
-  binding_contexts) override {
-    const auto &context = binding_contexts[0];
+  void PerformBinding(const std::vector<const planner::BindingContext*>&
+                          binding_contexts) override {
+    PL_ASSERT(tuple_idx_ != -1);
+    const auto& context = binding_contexts[tuple_idx_];
     ai_ = context->Find(value_idx_);
     PL_ASSERT(ai_ != nullptr);
-    LOG_DEBUG("AggregateOutput Column ID %u.%u binds to AI %p (%s)",
-              0, value_idx_, ai_, ai_->name.c_str());
+    LOG_DEBUG("AggregateOutput Column ID %u.%u binds to AI %p (%s)", tuple_idx_,
+              value_idx_, ai_, ai_->name.c_str());
   }
 
-  const planner::AttributeInfo *GetAttributeRef() const { return ai_; }
+  const planner::AttributeInfo* GetAttributeRef() const { return ai_; }
 
-  inline void SetValueIdx(int value_idx) { value_idx_ = value_idx; }
+  inline void SetValueIdx(int value_idx, int tuple_idx = 0) {
+    value_idx_ = value_idx;
+    tuple_idx_ = tuple_idx;
+  }
 
-  AbstractExpression* Copy() const override { return new AggregateExpression(*this); }
+  int GetValueIdx() { return value_idx_; }
+
+  int GetTupleIdx() { return tuple_idx_; }
+
+  AbstractExpression* Copy() const override {
+    return new AggregateExpression(*this);
+  }
 
   void DeduceExpressionType() override {
     switch (exp_type_) {
@@ -120,11 +132,14 @@ class AggregateExpression : public AbstractExpression {
 
  protected:
   AggregateExpression(const AggregateExpression& other)
-      : AbstractExpression(other), value_idx_(other.value_idx_) {}
+      : AbstractExpression(other),
+        value_idx_(other.value_idx_),
+        tuple_idx_(other.tuple_idx_) {}
 
  private:
   int value_idx_ = -1;
-  const planner::AttributeInfo *ai_;
+  int tuple_idx_ = -1;
+  const planner::AttributeInfo* ai_;
 };
 
 }  // namespace expression

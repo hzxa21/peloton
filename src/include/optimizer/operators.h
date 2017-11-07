@@ -50,11 +50,11 @@ class LeafOperator : OperatorNode<LeafOperator> {
 //===--------------------------------------------------------------------===//
 class LogicalGet : public OperatorNode<LogicalGet> {
  public:
-  static Operator make(oid_t get_id = 0,
-                       storage::DataTable *table = nullptr,
-                       std::string alias = "",
-                       std::shared_ptr<expression::AbstractExpression> predicate = nullptr,
-                       bool update = false);
+  static Operator make(
+      oid_t get_id = 0, storage::DataTable *table = nullptr,
+      std::string alias = "",
+      std::shared_ptr<expression::AbstractExpression> predicate = nullptr,
+      bool update = false);
 
   bool operator==(const BaseOperatorNode &r) override;
 
@@ -73,9 +73,11 @@ class LogicalGet : public OperatorNode<LogicalGet> {
 //===--------------------------------------------------------------------===//
 class LogicalQueryDerivedGet : public OperatorNode<LogicalQueryDerivedGet> {
  public:
-  static Operator make(oid_t get_id, std::string& alias,
-                       std::unordered_map<std::string,
-                                          std::shared_ptr<expression::AbstractExpression>> alias_to_expr_map);
+  static Operator make(
+      oid_t get_id, std::string &alias,
+      std::unordered_map<std::string,
+                         std::shared_ptr<expression::AbstractExpression>>
+          alias_to_expr_map);
 
   bool operator==(const BaseOperatorNode &r) override;
 
@@ -84,7 +86,8 @@ class LogicalQueryDerivedGet : public OperatorNode<LogicalQueryDerivedGet> {
   // identifier for all get operators
   oid_t get_id;
   std::string table_alias;
-  std::unordered_map<std::string, std::shared_ptr<expression::AbstractExpression>>
+  std::unordered_map<std::string,
+                     std::shared_ptr<expression::AbstractExpression>>
       alias_to_expr_map;
 };
 
@@ -151,7 +154,9 @@ class LogicalSemiJoin : public OperatorNode<LogicalSemiJoin> {
 //===--------------------------------------------------------------------===//
 class LogicalAggregate : public OperatorNode<LogicalAggregate> {
  public:
-  static Operator make();
+  static Operator make(std::shared_ptr<expression::AbstractExpression> having);
+
+  std::shared_ptr<expression::AbstractExpression> having;
 };
 
 //===--------------------------------------------------------------------===//
@@ -161,10 +166,10 @@ class LogicalGroupBy : public OperatorNode<LogicalGroupBy> {
  public:
   static Operator make(
       std::vector<std::shared_ptr<expression::AbstractExpression>> columns,
-      expression::AbstractExpression *having);
+      std::shared_ptr<expression::AbstractExpression> having);
 
   std::vector<std::shared_ptr<expression::AbstractExpression>> columns;
-  expression::AbstractExpression *having;
+  std::shared_ptr<expression::AbstractExpression> having;
 };
 
 //===--------------------------------------------------------------------===//
@@ -174,12 +179,13 @@ class LogicalInsert : public OperatorNode<LogicalInsert> {
  public:
   static Operator make(
       storage::DataTable *target_table, const std::vector<std::string> *columns,
-      const std::vector<std::vector<std::unique_ptr<expression::AbstractExpression>>> *
-          values);
+      const std::vector<std::vector<
+          std::unique_ptr<expression::AbstractExpression>>> *values);
 
   storage::DataTable *target_table;
   const std::vector<std::string> *columns;
-  const std::vector<std::vector<std::unique_ptr<expression::AbstractExpression>>> *values;
+  const std::vector<
+      std::vector<std::unique_ptr<expression::AbstractExpression>>> *values;
 };
 
 class LogicalInsertSelect : public OperatorNode<LogicalInsertSelect> {
@@ -204,11 +210,12 @@ class LogicalDelete : public OperatorNode<LogicalDelete> {
 //===--------------------------------------------------------------------===//
 class LogicalUpdate : public OperatorNode<LogicalUpdate> {
  public:
-  static Operator make(storage::DataTable *target_table,
-                       const std::vector<std::unique_ptr<parser::UpdateClause>>* updates);
+  static Operator make(
+      storage::DataTable *target_table,
+      const std::vector<std::unique_ptr<parser::UpdateClause>> *updates);
 
   storage::DataTable *target_table;
-  const std::vector<std::unique_ptr<parser::UpdateClause>>* updates;
+  const std::vector<std::unique_ptr<parser::UpdateClause>> *updates;
 };
 
 //===--------------------------------------------------------------------===//
@@ -224,9 +231,9 @@ class DummyScan : public OperatorNode<DummyScan> {
 //===--------------------------------------------------------------------===//
 class PhysicalSeqScan : public OperatorNode<PhysicalSeqScan> {
  public:
-  static Operator make(oid_t get_id, storage::DataTable *table, std::string alias,
-                       std::shared_ptr<expression::AbstractExpression> predicate,
-                       bool update);
+  static Operator make(
+      oid_t get_id, storage::DataTable *table, std::string alias,
+      std::shared_ptr<expression::AbstractExpression> predicate, bool update);
 
   bool operator==(const BaseOperatorNode &r) override;
 
@@ -245,9 +252,9 @@ class PhysicalSeqScan : public OperatorNode<PhysicalSeqScan> {
 //===--------------------------------------------------------------------===//
 class PhysicalIndexScan : public OperatorNode<PhysicalIndexScan> {
  public:
-  static Operator make(oid_t get_id, storage::DataTable *table, std::string alias,
-                       std::shared_ptr<expression::AbstractExpression> predicate,
-                       bool update);
+  static Operator make(
+      oid_t get_id, storage::DataTable *table, std::string alias,
+      std::shared_ptr<expression::AbstractExpression> predicate, bool update);
 
   bool operator==(const BaseOperatorNode &r) override;
 
@@ -266,9 +273,11 @@ class PhysicalIndexScan : public OperatorNode<PhysicalIndexScan> {
 //===--------------------------------------------------------------------===//
 class QueryDerivedScan : public OperatorNode<QueryDerivedScan> {
  public:
-  static Operator make(oid_t get_id, std::string alias,
-                       std::unordered_map<std::string,
-                                          std::shared_ptr<expression::AbstractExpression>> alias_to_expr_map);
+  static Operator make(
+      oid_t get_id, std::string alias,
+      std::unordered_map<std::string,
+                         std::shared_ptr<expression::AbstractExpression>>
+          alias_to_expr_map);
 
   bool operator==(const BaseOperatorNode &r) override;
 
@@ -277,7 +286,8 @@ class QueryDerivedScan : public OperatorNode<QueryDerivedScan> {
   // identifier for all get operators
   oid_t get_id;
   std::string table_alias;
-  std::unordered_map<std::string, std::shared_ptr<expression::AbstractExpression>>
+  std::unordered_map<std::string,
+                     std::shared_ptr<expression::AbstractExpression>>
       alias_to_expr_map;
 };
 
@@ -319,7 +329,8 @@ class PhysicalFilter : public OperatorNode<PhysicalFilter> {
 class PhysicalInnerNLJoin : public OperatorNode<PhysicalInnerNLJoin> {
  public:
   std::shared_ptr<expression::AbstractExpression> join_predicate;
-  static Operator make(std::shared_ptr<expression::AbstractExpression> join_predicate);
+  static Operator make(
+      std::shared_ptr<expression::AbstractExpression> join_predicate);
 };
 
 //===--------------------------------------------------------------------===//
@@ -328,7 +339,8 @@ class PhysicalInnerNLJoin : public OperatorNode<PhysicalInnerNLJoin> {
 class PhysicalLeftNLJoin : public OperatorNode<PhysicalLeftNLJoin> {
  public:
   std::shared_ptr<expression::AbstractExpression> join_predicate;
-  static Operator make(std::shared_ptr<expression::AbstractExpression> join_predicate);
+  static Operator make(
+      std::shared_ptr<expression::AbstractExpression> join_predicate);
 };
 
 //===--------------------------------------------------------------------===//
@@ -337,7 +349,8 @@ class PhysicalLeftNLJoin : public OperatorNode<PhysicalLeftNLJoin> {
 class PhysicalRightNLJoin : public OperatorNode<PhysicalRightNLJoin> {
  public:
   std::shared_ptr<expression::AbstractExpression> join_predicate;
-  static Operator make(std::shared_ptr<expression::AbstractExpression> join_predicate);
+  static Operator make(
+      std::shared_ptr<expression::AbstractExpression> join_predicate);
 };
 
 //===--------------------------------------------------------------------===//
@@ -346,7 +359,8 @@ class PhysicalRightNLJoin : public OperatorNode<PhysicalRightNLJoin> {
 class PhysicalOuterNLJoin : public OperatorNode<PhysicalOuterNLJoin> {
  public:
   std::shared_ptr<expression::AbstractExpression> join_predicate;
-  static Operator make(std::shared_ptr<expression::AbstractExpression> join_predicate);
+  static Operator make(
+      std::shared_ptr<expression::AbstractExpression> join_predicate);
 };
 
 //===--------------------------------------------------------------------===//
@@ -355,7 +369,8 @@ class PhysicalOuterNLJoin : public OperatorNode<PhysicalOuterNLJoin> {
 class PhysicalInnerHashJoin : public OperatorNode<PhysicalInnerHashJoin> {
  public:
   std::shared_ptr<expression::AbstractExpression> join_predicate;
-  static Operator make(std::shared_ptr<expression::AbstractExpression> join_predicate);
+  static Operator make(
+      std::shared_ptr<expression::AbstractExpression> join_predicate);
 };
 
 //===--------------------------------------------------------------------===//
@@ -364,7 +379,8 @@ class PhysicalInnerHashJoin : public OperatorNode<PhysicalInnerHashJoin> {
 class PhysicalLeftHashJoin : public OperatorNode<PhysicalLeftHashJoin> {
  public:
   std::shared_ptr<expression::AbstractExpression> join_predicate;
-  static Operator make(std::shared_ptr<expression::AbstractExpression> join_predicate);
+  static Operator make(
+      std::shared_ptr<expression::AbstractExpression> join_predicate);
 };
 
 //===--------------------------------------------------------------------===//
@@ -373,7 +389,8 @@ class PhysicalLeftHashJoin : public OperatorNode<PhysicalLeftHashJoin> {
 class PhysicalRightHashJoin : public OperatorNode<PhysicalRightHashJoin> {
  public:
   std::shared_ptr<expression::AbstractExpression> join_predicate;
-  static Operator make(std::shared_ptr<expression::AbstractExpression> join_predicate);
+  static Operator make(
+      std::shared_ptr<expression::AbstractExpression> join_predicate);
 };
 
 //===--------------------------------------------------------------------===//
@@ -382,7 +399,8 @@ class PhysicalRightHashJoin : public OperatorNode<PhysicalRightHashJoin> {
 class PhysicalOuterHashJoin : public OperatorNode<PhysicalOuterHashJoin> {
  public:
   std::shared_ptr<expression::AbstractExpression> join_predicate;
-  static Operator make(std::shared_ptr<expression::AbstractExpression> join_predicate);
+  static Operator make(
+      std::shared_ptr<expression::AbstractExpression> join_predicate);
 };
 
 //===--------------------------------------------------------------------===//
@@ -392,12 +410,13 @@ class PhysicalInsert : public OperatorNode<PhysicalInsert> {
  public:
   static Operator make(
       storage::DataTable *target_table, const std::vector<std::string> *columns,
-      const std::vector<std::vector<std::unique_ptr<expression::AbstractExpression>>> *
-          values);
+      const std::vector<std::vector<
+          std::unique_ptr<expression::AbstractExpression>>> *values);
 
   storage::DataTable *target_table;
   const std::vector<std::string> *columns;
-  const std::vector<std::vector<std::unique_ptr<expression::AbstractExpression>>> *values;
+  const std::vector<
+      std::vector<std::unique_ptr<expression::AbstractExpression>>> *values;
 };
 
 class PhysicalInsertSelect : public OperatorNode<PhysicalInsertSelect> {
@@ -421,11 +440,12 @@ class PhysicalDelete : public OperatorNode<PhysicalDelete> {
 //===--------------------------------------------------------------------===//
 class PhysicalUpdate : public OperatorNode<PhysicalUpdate> {
  public:
-  static Operator make(storage::DataTable *target_table,
-  const std::vector<std::unique_ptr<parser::UpdateClause>>* updates);
+  static Operator make(
+      storage::DataTable *target_table,
+      const std::vector<std::unique_ptr<parser::UpdateClause>> *updates);
 
   storage::DataTable *target_table;
-  const std::vector<std::unique_ptr<parser::UpdateClause>>* updates;
+  const std::vector<std::unique_ptr<parser::UpdateClause>> *updates;
 };
 
 //===--------------------------------------------------------------------===//
@@ -435,13 +455,13 @@ class PhysicalHashGroupBy : public OperatorNode<PhysicalHashGroupBy> {
  public:
   static Operator make(
       std::vector<std::shared_ptr<expression::AbstractExpression>> columns,
-      expression::AbstractExpression *having);
+      std::shared_ptr<expression::AbstractExpression> having);
 
   bool operator==(const BaseOperatorNode &r) override;
   hash_t Hash() const override;
 
   std::vector<std::shared_ptr<expression::AbstractExpression>> columns;
-  expression::AbstractExpression *having;
+  std::shared_ptr<expression::AbstractExpression> having;
 };
 
 //===--------------------------------------------------------------------===//
@@ -451,13 +471,13 @@ class PhysicalSortGroupBy : public OperatorNode<PhysicalSortGroupBy> {
  public:
   static Operator make(
       std::vector<std::shared_ptr<expression::AbstractExpression>> columns,
-      expression::AbstractExpression *having);
+      std::shared_ptr<expression::AbstractExpression> having);
 
   bool operator==(const BaseOperatorNode &r) override;
   hash_t Hash() const override;
 
   std::vector<std::shared_ptr<expression::AbstractExpression>> columns;
-  expression::AbstractExpression *having;
+  std::shared_ptr<expression::AbstractExpression> having;
 };
 
 //===--------------------------------------------------------------------===//
@@ -465,7 +485,8 @@ class PhysicalSortGroupBy : public OperatorNode<PhysicalSortGroupBy> {
 //===--------------------------------------------------------------------===//
 class PhysicalAggregate : public OperatorNode<PhysicalAggregate> {
  public:
-  static Operator make();
+  static Operator make(std::shared_ptr<expression::AbstractExpression> having);
+  std::shared_ptr<expression::AbstractExpression> having;
 };
 
 class PhysicalDistinct : public OperatorNode<PhysicalDistinct> {
@@ -473,5 +494,5 @@ class PhysicalDistinct : public OperatorNode<PhysicalDistinct> {
   static Operator make();
 };
 
-} // namespace optimizer
-} // namespace peloton
+}  // namespace optimizer
+}  // namespace peloton

@@ -286,7 +286,8 @@ class ExpressionUtil {
     }
   }
 
-  inline static ExpressionType ReverseComparisonExpressionType(ExpressionType type) {
+  inline static ExpressionType ReverseComparisonExpressionType(
+      ExpressionType type) {
     switch (type) {
       case ExpressionType::COMPARE_GREATERTHAN:
         return ExpressionType::COMPARE_LESSTHANOREQUALTO;
@@ -461,6 +462,19 @@ class ExpressionUtil {
     }
   }
 
+  static void GetAggregateExprs(ExprSet &expr_set,
+                                expression::AbstractExpression *expr) {
+    if (expr == nullptr) return;
+    if (IsAggregateExpression(expr)) {
+      expr_set.insert(
+          std::shared_ptr<expression::AbstractExpression>(expr->Copy()));
+      return;
+    }
+    size_t children_size = expr->GetChildrenSize();
+    for (size_t i = 0; i < children_size; i++)
+      GetAggregateExprs(expr_set, expr->GetModifiableChild(i));
+  }
+
   /**
    * Walks an expression trees and find all TupleValueExprs in the tree, add
    * them to a map for order preserving.
@@ -526,9 +540,15 @@ class ExpressionUtil {
       auto aggr_expr = (AggregateExpression *)expr;
       std::shared_ptr<AbstractExpression> probe_expr(
           std::shared_ptr<AbstractExpression>{}, aggr_expr);
-      auto &expr_map = expr_maps[0];
-      auto iter = expr_map.find(probe_expr);
-      if (iter != expr_map.end()) aggr_expr->SetValueIdx(iter->second);
+      size_t tuple_idx = 0;
+      for (auto &expr_map : expr_maps) {
+        auto iter = expr_map.find(probe_expr);
+        if (iter != expr_map.end()) {
+          aggr_expr->SetValueIdx(iter->second, tuple_idx);
+          break;
+        }
+        tuple_idx++;
+      }
     } else if (expr->GetExpressionType() == ExpressionType::FUNCTION) {
       auto func_expr = (expression::FunctionExpression *)expr;
       std::vector<type::TypeId> argtypes;
@@ -541,9 +561,8 @@ class ExpressionUtil {
       LOG_INFO("Function %s found in the catalog",
                func_data.func_name_.c_str());
       LOG_INFO("Argument num: %ld", func_data.argument_types_.size());
-      func_expr->SetFunctionExpressionParameters(func_data.func_,
-                                                 func_data.return_type_,
-                                                 func_data.argument_types_);
+      func_expr->SetFunctionExpressionParameters(
+          func_data.func_, func_data.return_type_, func_data.argument_types_);
     } else if (expr->GetExpressionType() ==
                ExpressionType::OPERATOR_CASE_EXPR) {
       auto case_expr = reinterpret_cast<expression::CaseExpression *>(expr);
@@ -569,10 +588,10 @@ class ExpressionUtil {
    */
 
   static expression::AbstractExpression *ExtractJoinColumns(
-      std::vector<std::unique_ptr<const expression::AbstractExpression>>
-          &l_column_exprs,
-      std::vector<std::unique_ptr<const expression::AbstractExpression>>
-          &r_column_exprs,
+      std::vector<std::unique_ptr<const expression::AbstractExpression>> &
+          l_column_exprs,
+      std::vector<std::unique_ptr<const expression::AbstractExpression>> &
+          r_column_exprs,
       const expression::AbstractExpression *expr) {
     if (expr == nullptr) return nullptr;
     if (expr->GetExpressionType() == ExpressionType::CONJUNCTION_AND) {
@@ -791,9 +810,8 @@ class ExpressionUtil {
       auto catalog = catalog::Catalog::GetInstance();
       const catalog::FunctionData &func_data =
           catalog->GetFunction(func_expr->GetFuncName(), argtypes);
-      func_expr->SetFunctionExpressionParameters(func_data.func_,
-                                                 func_data.return_type_,
-                                                 func_data.argument_types_);
+      func_expr->SetFunctionExpressionParameters(
+          func_data.func_, func_data.return_type_, func_data.argument_types_);
     }
 
     // Handle case expressions

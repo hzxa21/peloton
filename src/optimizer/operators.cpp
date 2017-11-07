@@ -145,8 +145,10 @@ Operator LogicalSemiJoin::make(expression::AbstractExpression *condition) {
 //===--------------------------------------------------------------------===//
 // Aggregate
 //===--------------------------------------------------------------------===//
-Operator LogicalAggregate::make() {
+Operator LogicalAggregate::make(
+    std::shared_ptr<expression::AbstractExpression> having) {
   LogicalAggregate *agg = new LogicalAggregate;
+  agg->having = having;
   return Operator(agg);
 }
 
@@ -155,7 +157,7 @@ Operator LogicalAggregate::make() {
 //===--------------------------------------------------------------------===//
 Operator LogicalGroupBy::make(
     std::vector<std::shared_ptr<expression::AbstractExpression>> columns,
-    expression::AbstractExpression *having) {
+    std::shared_ptr<expression::AbstractExpression> having) {
   LogicalGroupBy *group_by = new LogicalGroupBy;
   group_by->columns = move(columns);
   group_by->having = having;
@@ -458,7 +460,7 @@ Operator PhysicalUpdate::make(
 //===--------------------------------------------------------------------===//
 Operator PhysicalHashGroupBy::make(
     std::vector<std::shared_ptr<expression::AbstractExpression>> columns,
-    expression::AbstractExpression *having) {
+    std::shared_ptr<expression::AbstractExpression> having) {
   PhysicalHashGroupBy *agg = new PhysicalHashGroupBy;
   agg->columns = std::move(columns);
   agg->having = having;
@@ -487,7 +489,7 @@ hash_t PhysicalHashGroupBy::Hash() const {
 //===--------------------------------------------------------------------===//
 Operator PhysicalSortGroupBy::make(
     std::vector<std::shared_ptr<expression::AbstractExpression>> columns,
-    expression::AbstractExpression *having) {
+    std::shared_ptr<expression::AbstractExpression> having) {
   PhysicalSortGroupBy *agg = new PhysicalSortGroupBy;
   agg->columns = std::move(columns);
   agg->having = having;
@@ -514,8 +516,10 @@ hash_t PhysicalSortGroupBy::Hash() const {
 //===--------------------------------------------------------------------===//
 // PhysicalAggregate
 //===--------------------------------------------------------------------===//
-Operator PhysicalAggregate::make() {
+Operator PhysicalAggregate::make(
+    std::shared_ptr<expression::AbstractExpression> having) {
   PhysicalAggregate *agg = new PhysicalAggregate;
+  agg->having = having;
   return Operator(agg);
 }
 

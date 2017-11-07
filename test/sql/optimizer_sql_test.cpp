@@ -134,10 +134,9 @@ class OptimizerSQLTests : public PelotonTest {
 
 TEST_F(OptimizerSQLTests, SimpleSelectTest) {
   // Testing select star expression
-  TestUtil(
-      "SELECT * from test",
-      {"333", "22", "1", "2", "11", "0", "3", "33", "444", "4", "0", "555"},
-      false);
+  TestUtil("SELECT * from test", {"333", "22", "1", "2", "11", "0", "3", "33",
+                                  "444", "4", "0", "555"},
+           false);
 
   // Something wrong with column property.
   string query = "SELECT b from test order by c";
@@ -232,10 +231,9 @@ TEST_F(OptimizerSQLTests, SelectOrderByTest) {
       true);
 
   // Testing order by * expression
-  TestUtil(
-      "SELECT * from test order by a",
-      {"1", "22", "333", "2", "11", "0", "3", "33", "444", "4", "0", "555"},
-      true);
+  TestUtil("SELECT * from test order by a", {"1", "22", "333", "2", "11", "0",
+                                             "3", "33", "444", "4", "0", "555"},
+           true);
 }
 
 TEST_F(OptimizerSQLTests, SelectLimitTest) {
@@ -599,7 +597,7 @@ TEST_F(OptimizerSQLTests, JoinTest) {
       "SELECT A.b, B.b FROM test1 as A, test1 as B "
       "WHERE A.a = B.a",
       {
-          "22", "22", "22", "22", "11", "11", "0", "0",
+       "22", "22", "22", "22", "11", "11", "0", "0",
       },
       false);
 
@@ -655,52 +653,87 @@ TEST_F(OptimizerSQLTests, IndexTest) {
 
 TEST_F(OptimizerSQLTests, QueryDerivedTableTest) {
   // Create extra table
-  TestingSQLUtil::ExecuteSQLQuery("CREATE TABLE test2(a int primary key, b int, c varchar(32))");
+  TestingSQLUtil::ExecuteSQLQuery(
+      "CREATE TABLE test2(a int primary key, b int, c varchar(32))");
   TestingSQLUtil::ExecuteSQLQuery("INSERT INTO test2 VALUES (1, 22, '1st');");
   TestingSQLUtil::ExecuteSQLQuery("INSERT INTO test2 VALUES (2, 11, '2nd');");
   TestingSQLUtil::ExecuteSQLQuery("INSERT INTO test2 VALUES (3, 33, '3rd');");
   TestingSQLUtil::ExecuteSQLQuery("INSERT INTO test2 VALUES (5, 00, '4th');");
-  TestUtil("select A.b from (select b from test where a = 1) as A", {"22"}, false);
-  TestUtil("select * from (select b from test where a = 1) as A", {"22"}, false);
-  TestUtil("select A.b, B.b from (select b from test where a = 1) as A, (select b from test as t where a=2) as B",
-           {"22", "11"}, false);
-  TestUtil("select B.b from (select b from test where a = 1) as A, (select b from test as t where a=2) as B",
-           {"11"}, false);
-  TestUtil("select * from (select b from test where a = 1) as A, (select b from test as t where a=2) as B",
-           {"22", "11"}, false);
-  TestUtil("select * from (select b from test) as A, (select b from test as t) as B where A.b = B.b",
-           {"22", "22", "11", "11", "33", "33","0", "0"}, false);
-  TestUtil("select * from (select b from test) as A, (select b from test) as B where A.b = B.b",
-           {"22", "22", "11", "11", "33", "33","0", "0"}, false);
-  TestUtil("select A.a, B.c from (select count(*) as a from test) as A, (select avg(a) as C from test2) as B",
-           {"4", "2.75"}, false);
-  TestUtil("select * from (select a+b as a, c from test) as A, (select a+b as a, c as c from test2) as B where A.a=B.a",
-           {"13","0","13","2nd","23","333","23","1st","36","444","36","3rd"}, false);
-  TestUtil("select A.c, B.c from (select a+b as a, c from test) as A, (select a+b as a, c as c from test2) as B where A.a=B.a order by A.a",
-           {"0", "2nd","333","1st","444","3rd"}, true);
-//  TestUtil("select * from test as B where b in (select b as a from test where a = B.a);", {"22"}, false);
-//  TestUtil("select (select b as a from test where a = B.a) from test as B;", {"22"}, false);
-//  TestUtil("select * from test where a in (select * from test)", {}, false);
-
+  TestUtil("select A.b from (select b from test where a = 1) as A", {"22"},
+           false);
+  TestUtil("select * from (select b from test where a = 1) as A", {"22"},
+           false);
+  TestUtil(
+      "select * from (select avg(b) as bb from test group by A) as A where bb "
+      "< 33",
+      {"11", "22", "0"}, false);
+  TestUtil(
+      "select A.b, B.b from (select b from test where a = 1) as A, (select b "
+      "from test as t where a=2) as B",
+      {"22", "11"}, false);
+  TestUtil(
+      "select B.b from (select b from test where a = 1) as A, (select b from "
+      "test as t where a=2) as B",
+      {"11"}, false);
+  TestUtil(
+      "select * from (select b from test where a = 1) as A, (select b from "
+      "test as t where a=2) as B",
+      {"22", "11"}, false);
+  TestUtil(
+      "select * from (select b from test) as A, (select b from test as t) as B "
+      "where A.b = B.b",
+      {"22", "22", "11", "11", "33", "33", "0", "0"}, false);
+  TestUtil(
+      "select * from (select b from test) as A, (select b from test) as B "
+      "where A.b = B.b",
+      {"22", "22", "11", "11", "33", "33", "0", "0"}, false);
+  TestUtil(
+      "select A.a, B.c from (select count(*) as a from test) as A, (select "
+      "avg(a) as C from test2) as B",
+      {"4", "2.75"}, false);
+  TestUtil(
+      "select * from (select a+b as a, c from test) as A, (select a+b as a, c "
+      "as c from test2) as B where A.a=B.a",
+      {"13", "0", "13", "2nd", "23", "333", "23", "1st", "36", "444", "36",
+       "3rd"},
+      false);
+  TestUtil(
+      "select A.c, B.c from (select a+b as a, c from test) as A, (select a+b "
+      "as a, c as c from test2) as B where A.a=B.a order by A.a",
+      {"0", "2nd", "333", "1st", "444", "3rd"}, true);
 }
 
 // WIP
 TEST_F(OptimizerSQLTests, NestedQueryTest) {
   // Create extra table
-  TestingSQLUtil::ExecuteSQLQuery("CREATE TABLE test2(a int primary key, b int, c varchar(32))");
+  TestingSQLUtil::ExecuteSQLQuery(
+      "CREATE TABLE test2(a int primary key, b int, c varchar(32))");
   TestingSQLUtil::ExecuteSQLQuery("INSERT INTO test2 VALUES (1, 22, '1st');");
   TestingSQLUtil::ExecuteSQLQuery("INSERT INTO test2 VALUES (2, 11, '2nd');");
   TestingSQLUtil::ExecuteSQLQuery("INSERT INTO test2 VALUES (3, 33, '3rd');");
   TestingSQLUtil::ExecuteSQLQuery("INSERT INTO test2 VALUES (5, 00, '4th');");
-  TestUtil("select B.a from test as B where exists (select b as a from test where a = B.a);", {"1", "2", "3", "4"}, false);
-  TestUtil("select b from test where a in (select a from test as t where a = test.a)", {"11", "22", "33", "0"}, false);
-  TestUtil("select B.a from test as B where exists (select b as a from test2 where a = B.a) and "
-               "b in (select b from test where b > 22);", {"3"}, false);
-  TestUtil("select B.a from test as B where exists (select b as a from test2 where a = B.a) and "
-               "b in (select b from test) and c > 0;", {"1", "3"}, false);
-  TestUtil("select t1.a, t2.a from test as t1 join test as t2 on t1.a=t2.a "
-               "where t1.b+t2.b in (select 2*b from test2 where a > 2)", {"3", "3", "4", "4"}, false);
-
+  TestUtil(
+      "select B.a from test as B where exists (select b as a from test where a "
+      "= B.a);",
+      {"1", "2", "3", "4"}, false);
+  TestUtil(
+      "select b from test where a in (select a from test as t where a = "
+      "test.a)",
+      {"11", "22", "33", "0"}, false);
+  TestUtil(
+      "select B.a from test as B where exists (select b as a from test2 where "
+      "a = B.a) and "
+      "b in (select b from test where b > 22);",
+      {"3"}, false);
+  TestUtil(
+      "select B.a from test as B where exists (select b as a from test2 where "
+      "a = B.a) and "
+      "b in (select b from test) and c > 0;",
+      {"1", "3"}, false);
+  TestUtil(
+      "select t1.a, t2.a from test as t1 join test as t2 on t1.a=t2.a "
+      "where t1.b+t2.b in (select 2*b from test2 where a > 2)",
+      {"3", "3", "4", "4"}, false);
 }
 
 }  // namespace test
