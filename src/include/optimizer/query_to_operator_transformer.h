@@ -38,15 +38,11 @@ class SubqueryOperatorExpressionContext {
   SubqueryOperatorExpressionContext(
       bool convertible, std::shared_ptr<OperatorExpression> expr,
       std::unordered_set<std::string> table_alias_set,
-      expression::AbstractExpression *outer_key = nullptr,
-      expression::AbstractExpression *inner_key = nullptr,
-      ExpressionType type = ExpressionType::COMPARE_EQUAL)
+      expression::AbstractExpression *inner_key = nullptr)
       : is_convertible(convertible),
         output_expr(expr),
         table_alias_set(table_alias_set),
-        outer_query_key_expr(outer_key),
-        inner_query_key_expr(inner_key),
-        join_condition_type(type) {}
+        subquery_query_key_expr(inner_key) {}
 
   bool is_convertible;
   std::shared_ptr<OperatorExpression> output_expr;
@@ -54,9 +50,7 @@ class SubqueryOperatorExpressionContext {
   // Store two key expression separately rather than the join condition
   // expression
   // because there can be restrictions on the inner key (e.g. unique, limit 1)
-  expression::AbstractExpression *outer_query_key_expr;
-  expression::AbstractExpression *inner_query_key_expr;
-  ExpressionType join_condition_type;
+  expression::AbstractExpression *subquery_query_key_expr;
 };
 
 typedef std::vector<std::shared_ptr<SubqueryOperatorExpressionContext>>
@@ -110,7 +104,7 @@ class QueryToOperatorTransformer : public SqlNodeVisitor {
   std::unordered_set<std::string> table_alias_set_;
   std::unordered_map<int, std::vector<expression::AbstractExpression *>>
       predicates_by_depth_;
-  std::unordered_map<int, SubqueryContexts> subquery_by_depth_;
+  SubqueryContexts subquery_contexts_;
   bool is_subquery_convertible_;
   int depth_;
 
