@@ -52,43 +52,20 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
   // Clear table alias set
   table_alias_set_.clear();
 
-  // TODO:: Separate the following codes into different handler function for
-  // different clause
-  // Generate aggregation operator first
-  std::shared_ptr<OperatorExpression> agg_operator = nullptr;
-  if (op->group_by != nullptr) {
-    // Make copies of groupby columns
-    vector<shared_ptr<expression::AbstractExpression>> group_by_cols;
-    for (auto &col : op->group_by->columns)
-      group_by_cols.emplace_back(col->Copy());
-    auto having = GenerateHavingPredicate(op->group_by->having.get());
-    agg_operator = std::make_shared<OperatorExpression>(
-        LogicalGroupBy::make(move(group_by_cols), having));
-  } else {
-    // Check plain aggregation
-    bool has_aggregation = false;
-    bool has_other_exprs = false;
-    for (auto &expr : op->getSelectList()) {
-      vector<shared_ptr<expression::AggregateExpression>> aggr_exprs;
-      expression::ExpressionUtil::GetAggregateExprs(aggr_exprs, expr.get());
-      if (aggr_exprs.size() > 0)
-        has_aggregation = true;
-      else
-        has_other_exprs = true;
-    }
-    // Syntax error when there are mixture of aggregation and other exprs
-    // when group by is absent
-    if (has_aggregation && has_other_exprs)
-      throw SyntaxException(
-          "Non aggregation expression must appear in the GROUP BY "
-          "clause or be used in an aggregate function");
-    // Plain aggregation
-    else if (has_aggregation && !has_other_exprs) {
-      auto having = GenerateHavingPredicate();
-      agg_operator =
-          std::make_shared<OperatorExpression>(LogicalAggregate::make(having));
-    }
-  }
+  // Init the convertible flag
+  // Only if the current query has aggregation
+  // and contains non-equality predicate correlated to the outer query
+  is_subquery_convertible_ = true;
+
+  // Whether the query require aggregation, if it does, generate having
+  // predicates
+  // first because the predicates from outer query should be placed after the
+  // aggregation
+  // e.g. SELECT * FROM (select avg(b) as bb from test group by A) as A WHERE bb
+  // < 33
+  bool require_agg = util::RequireAggregation(op);
+  std::shared_ptr<expression::AbstractExpression> having_pred = nullptr;
+  if (require_agg) having_pred = GenerateHavingPredicate(op);
 
   if (op->where_clause != nullptr) {
     // Split by AND
@@ -116,11 +93,6 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
 
     op->from_table->Accept(this);
 
-    if (agg_operator != nullptr) {
-      agg_operator->PushChild(output_expr_);
-      output_expr_ = agg_operator;
-    }
-
     // Handle subquery operator trees
     auto &subquery_contexts = subquery_by_depth_[depth_];
     for (auto &context : subquery_contexts) {
@@ -147,6 +119,24 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
       }
     }
     PL_ASSERT(join_predicates_.empty());
+
+    // Add aggregation on top of the current tree if any
+    if (require_agg) {
+      if (op->group_by != nullptr) {
+        vector<shared_ptr<expression::AbstractExpression>> group_by_cols;
+        for (auto &col : op->group_by->columns)
+          group_by_cols.emplace_back(col->Copy());
+        auto group_by_expr = std::make_shared<OperatorExpression>(
+            LogicalGroupBy::make(move(group_by_cols), having_pred));
+        group_by_expr->PushChild(output_expr_);
+        output_expr_ = group_by_expr;
+      } else {
+        auto agg_expr = std::make_shared<OperatorExpression>(
+            LogicalAggregate::make(having_pred));
+        agg_expr->PushChild(output_expr_);
+        output_expr_ = agg_expr;
+      }
+    }
 
   } else {
     // SELECT without FROM
@@ -407,6 +397,16 @@ void QueryToOperatorTransformer::Visit(expression::SubqueryExpression *expr) {
 //===----------------------------------------------------------------------===//
 std::shared_ptr<expression::AbstractExpression>
 QueryToOperatorTransformer::GenerateHavingPredicate(
+    const parser::SelectStatement *op) {
+  if (op->group_by != nullptr) {
+    return GenerateHavingPredicate(op->group_by->having.get());
+  } else {
+    return GenerateHavingPredicate();
+  }
+}
+
+std::shared_ptr<expression::AbstractExpression>
+QueryToOperatorTransformer::GenerateHavingPredicate(
     expression::AbstractExpression *having_expr) {
   auto having_predicates =
       std::vector<shared_ptr<expression::AbstractExpression>>();
@@ -414,6 +414,9 @@ QueryToOperatorTransformer::GenerateHavingPredicate(
     having_predicates.push_back(
         std::shared_ptr<expression::AbstractExpression>(having_expr->Copy()));
   }
+  // If there are any predicates from the upper level, they should be added into
+  // the
+  // having clause
   for (auto &entry : single_table_predicates_map)
     for (auto &pred : entry.second) having_predicates.emplace_back(pred);
   for (auto &expr : join_predicates_) having_predicates.emplace_back(expr.expr);
@@ -437,20 +440,16 @@ QueryToOperatorTransformer::GenerateHavingPredicate(
 //===----------------------------------------------------------------------===//
 void QueryToOperatorTransformer::MaybeRewriteSubqueryWithAggregation(
     parser::SelectStatement *select) {
-  bool is_agg = (select->group_by != nullptr);
-  if (!is_agg) {
-    for (auto &ele : select->select_list) {
-      if (expression::ExpressionUtil::IsAggregateExpression(ele.get())) {
-        is_agg = true;
-        break;
-      }
-    }
-  }
-  if (is_agg) {
-    // TODO
-  }
+  UNUSED_ATTRIBUTE bool is_agg = util::RequireAggregation(select);
 }
 
+// Convert a expr with subquery to a normal join if:
+// 1. It is a OPERATOR_EXISTS predicate and the subquery
+//    is correlated with the outer query with {<,<=,>,>=,=,!=} relationship
+// 2. It is a COMPARE_IN predicate
+// 3. It is a {<,<=,>,>=,=,!=} predicate with only one child of it is a subquery
+// Note: if the expr contains disjunction, it cannot be converted to join unless
+// we have implemented a mark join.
 bool QueryToOperatorTransformer::ConvertSubquery(
     expression::AbstractExpression *expr) {
   auto expr_type = expr->GetExpressionType();

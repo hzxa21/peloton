@@ -94,9 +94,14 @@ class QueryToOperatorTransformer : public SqlNodeVisitor {
 
   // Helper functions
   bool ConvertSubquery(expression::AbstractExpression *expr);
+
   void MaybeRewriteSubqueryWithAggregation(parser::SelectStatement *select);
+
   std::shared_ptr<expression::AbstractExpression> GenerateHavingPredicate(
       expression::AbstractExpression *having_expr = nullptr);
+
+  std::shared_ptr<expression::AbstractExpression> GenerateHavingPredicate(
+      const parser::SelectStatement *op);
 
  private:
   std::shared_ptr<OperatorExpression> output_expr_;
@@ -106,6 +111,7 @@ class QueryToOperatorTransformer : public SqlNodeVisitor {
   std::unordered_map<int, std::vector<expression::AbstractExpression *>>
       predicates_by_depth_;
   std::unordered_map<int, SubqueryContexts> subquery_by_depth_;
+  bool is_subquery_convertible_;
   int depth_;
 
   concurrency::Transaction *txn_;

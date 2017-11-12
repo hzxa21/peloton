@@ -28,17 +28,20 @@ namespace expression {
 
 class SubqueryExpression : public AbstractExpression {
  public:
-  SubqueryExpression() : AbstractExpression(ExpressionType::ROW_SUBQUERY, type::TypeId::INVALID) {}
+  SubqueryExpression()
+      : AbstractExpression(ExpressionType::ROW_SUBQUERY,
+                           type::TypeId::INVALID) {}
 
-  virtual type::Value Evaluate(UNUSED_ATTRIBUTE const AbstractTuple *tuple1,
-                               UNUSED_ATTRIBUTE const AbstractTuple *tuple2,
-                               UNUSED_ATTRIBUTE executor::ExecutorContext *context) const override {
+  virtual type::Value Evaluate(
+      UNUSED_ATTRIBUTE const AbstractTuple *tuple1,
+      UNUSED_ATTRIBUTE const AbstractTuple *tuple2,
+      UNUSED_ATTRIBUTE executor::ExecutorContext *context) const override {
     // Only a place holder
     return type::ValueFactory::GetBooleanValue(false);
   }
 
   virtual AbstractExpression *Copy() const override {
-//    throw Exception("Copy() not supported in subquery_expression");
+    //    throw Exception("Copy() not supported in subquery_expression");
     // Hack. May need to implement deep copy parse tree node in the future
     auto new_expr = new SubqueryExpression();
     new_expr->select_ = this->select_;
@@ -49,29 +52,35 @@ class SubqueryExpression : public AbstractExpression {
 
   virtual void Accept(SqlNodeVisitor *v) override { v->Visit(this); }
 
-  void SetSubSelect(parser::SelectStatement* select) {
+  void SetSubSelect(parser::SelectStatement *select) {
     select_ = std::shared_ptr<parser::SelectStatement>(select);
   }
 
-  std::shared_ptr<parser::SelectStatement> GetSubSelect() const { return select_; }
-
   virtual int DeriveDepth() override {
-    for (auto& select_ele : select_->select_list) {
+    for (auto &select_ele : select_->select_list) {
       auto select_depth = select_ele->DeriveDepth();
       if (select_depth >= 0 && (depth_ == -1 || select_depth < depth_))
         depth_ = select_depth;
     }
     if (select_->where_clause != nullptr) {
       auto where_depth = select_->where_clause->GetDepth();
-      if (where_depth >=0 && where_depth < depth_)
-        depth_ = where_depth;
+      if (where_depth >= 0 && where_depth < depth_) depth_ = where_depth;
     }
     return depth_;
   }
 
+  std::shared_ptr<parser::SelectStatement> GetSubSelect() const {
+    return select_;
+  }
+
+  std::vector<std::shared_ptr<expression::AbstractExpression>> &
+  GetOutputExprs() {
+    return output_exprs_;
+  };
+
  protected:
   std::shared_ptr<parser::SelectStatement> select_;
-
+  std::vector<std::shared_ptr<expression::AbstractExpression>> output_exprs_;
 };
 
 }  // namespace expression

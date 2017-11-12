@@ -71,7 +71,8 @@ void SplitPredicates(expression::AbstractExpression* expr,
 expression::AbstractExpression* CombinePredicates(
     std::vector<std::shared_ptr<expression::AbstractExpression>> predicates);
 
-expression::AbstractExpression* CombinePredicates(MultiTablePredicates predicates);
+expression::AbstractExpression* CombinePredicates(
+    MultiTablePredicates predicates);
 
 void ExtractPredicates(expression::AbstractExpression* expr,
                        SingleTablePredicatesMap& where_predicates,
@@ -95,11 +96,16 @@ std::unique_ptr<planner::AbstractPlan> CreateCopyPlan(
     parser::CopyStatement* copy_stmt);
 
 std::unordered_map<std::string, std::shared_ptr<expression::AbstractExpression>>
-ConstructSelectElementMap(std::vector<std::unique_ptr<expression::AbstractExpression>> &select_list);
+ConstructSelectElementMap(
+    std::vector<std::unique_ptr<expression::AbstractExpression>>& select_list);
 
-expression::AbstractExpression*
-TransformQueryDerivedTablePredicates(const std::unordered_map<std::string, std::shared_ptr<expression::AbstractExpression>>& alias_to_expr_map,
-                                     expression::AbstractExpression* expr);
+expression::AbstractExpression* TransformQueryDerivedTablePredicates(
+    const std::unordered_map<std::string,
+                             std::shared_ptr<expression::AbstractExpression>>&
+        alias_to_expr_map,
+    expression::AbstractExpression* expr);
+
+bool RequireAggregation(const parser::SelectStatement* op);
 
 }  // namespace util
 }  // namespace optimizer

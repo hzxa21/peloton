@@ -202,8 +202,8 @@ void ExtractPredicates(expression::AbstractExpression* expr,
   std::vector<expression::AbstractExpression*> predicates;
   SplitPredicates(expr, predicates);
 
-  ExtractPredicates(predicates, single_table_predicates_map,
-                    join_predicates, enable_predicate_push_down);
+  ExtractPredicates(predicates, single_table_predicates_map, join_predicates,
+                    enable_predicate_push_down);
 }
 
 /**
@@ -222,7 +222,7 @@ void ExtractPredicates(std::vector<expression::AbstractExpression*>& predicates,
       join_predicates.emplace_back(AnnotatedExpression(
           std::shared_ptr<expression::AbstractExpression>(predicate->Copy()),
           table_alias_set));
-    else if (table_alias_set.size() == 1 ){
+    else if (table_alias_set.size() == 1) {
       std::string table_alias = StringUtil::Lower(*(table_alias_set.begin()));
       if (single_table_predicates_map.find(table_alias) ==
           single_table_predicates_map.end())
@@ -293,7 +293,8 @@ expression::AbstractExpression* CombinePredicates(
 /**
  * Combine a vector of expressions with AND
  */
-expression::AbstractExpression* CombinePredicates(MultiTablePredicates predicates) {
+expression::AbstractExpression* CombinePredicates(
+    MultiTablePredicates predicates) {
   if (predicates.empty()) return nullptr;
 
   if (predicates.size() == 1) return predicates[0].expr->Copy();
@@ -303,7 +304,8 @@ expression::AbstractExpression* CombinePredicates(MultiTablePredicates predicate
       predicates[1].expr->Copy());
   for (size_t i = 2; i < predicates.size(); i++) {
     conjunction = new expression::ConjunctionExpression(
-        ExpressionType::CONJUNCTION_AND, conjunction, predicates[i].expr->Copy());
+        ExpressionType::CONJUNCTION_AND, conjunction,
+        predicates[i].expr->Copy());
   }
   return conjunction;
 }
@@ -416,7 +418,8 @@ expression::AbstractExpression* TransformQueryDerivedTablePredicates(
     auto new_expr =
         alias_to_expr_map
             .find(reinterpret_cast<expression::TupleValueExpression*>(expr)
-                      ->GetColumnName())->second;
+                      ->GetColumnName())
+            ->second;
     return new_expr->Copy();
   }
   auto child_size = expr->GetChildrenSize();
@@ -425,6 +428,29 @@ expression::AbstractExpression* TransformQueryDerivedTablePredicates(
                           alias_to_expr_map, expr->GetModifiableChild(i)));
   }
   return expr;
+}
+
+bool RequireAggregation(const parser::SelectStatement* op) {
+  if (op->group_by != nullptr) return true;
+  // Check plain aggregation
+  bool has_aggregation = false;
+  bool has_other_exprs = false;
+  for (auto& expr : op->getSelectList()) {
+    std::vector<std::shared_ptr<expression::AggregateExpression>> aggr_exprs;
+    expression::ExpressionUtil::GetAggregateExprs(aggr_exprs, expr.get());
+    if (aggr_exprs.size() > 0)
+      has_aggregation = true;
+    else
+      has_other_exprs = true;
+  }
+  // TODO: Should be handled in the binder
+  // Syntax error when there are mixture of aggregation and other exprs
+  // when group by is absent
+  if (has_aggregation && has_other_exprs)
+    throw SyntaxException(
+        "Non aggregation expression must appear in the GROUP BY "
+        "clause or be used in an aggregate function");
+  return has_aggregation;
 }
 
 }  // namespace util
