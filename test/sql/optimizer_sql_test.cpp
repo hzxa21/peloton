@@ -735,9 +735,21 @@ TEST_F(OptimizerSQLTests, NestedQueryTest) {
       "where t1.b+t2.b in (select 2*b from test2 where a > 2)",
       {"3", "3", "4", "4"}, false);
   TestUtil(
-      "select B.a from test as B where exists (select b as a from test as T where a "
-          "= B.a and exists (select c from test where T.c = c));",
+      "select B.a from test as B where exists (select b as a from test as T "
+      "where a "
+      "= B.a and exists (select c from test where T.c = c));",
       {"1", "2", "3", "4"}, false);
+
+  // Nested with aggregation
+  TestUtil(
+      "select B.a from test as B where exists (select count(b) from test where "
+      "a "
+      "= B.a);",
+      {"1", "2", "3", "4"}, false);
+  TestUtil(
+      "select b from test where a in (select sum(a) from test as t where a = "
+      "test.a group by b)",
+      {"11", "22", "33", "0"}, false);
 }
 
 }  // namespace test

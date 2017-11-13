@@ -38,8 +38,8 @@ inline void to_lower_string(std::string& str) {
 }
 
 template <class T>
-bool IsSubset(std::unordered_set<T>& super_set,
-              std::unordered_set<T>& child_set) {
+bool IsSubset(const std::unordered_set<T>& super_set,
+              const std::unordered_set<T>& child_set) {
   for (auto element : child_set) {
     if (super_set.find(element) == super_set.end()) return false;
   }

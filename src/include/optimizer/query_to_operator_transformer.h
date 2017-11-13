@@ -89,8 +89,6 @@ class QueryToOperatorTransformer : public SqlNodeVisitor {
   // Helper functions
   bool ConvertSubquery(expression::AbstractExpression *expr);
 
-  void MaybeRewriteSubqueryWithAggregation(parser::SelectStatement *select);
-
   std::shared_ptr<expression::AbstractExpression> GenerateHavingPredicate(
       expression::AbstractExpression *having_expr = nullptr);
 

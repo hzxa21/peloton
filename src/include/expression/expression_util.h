@@ -440,17 +440,18 @@ class ExpressionUtil {
       std::vector<std::shared_ptr<AggregateExpression>> &aggr_exprs,
       AbstractExpression *expr) {
     std::vector<std::shared_ptr<TupleValueExpression>> dummy_tv_exprs;
-    GetAggregateExprs(aggr_exprs, dummy_tv_exprs, expr);
+    GetAggregateAndTvExprs(aggr_exprs, dummy_tv_exprs, expr);
   }
 
   /**
    * Walks an expression trees and find all AggregationExprs and TupleValueExprs
    * subtrees.
    */
-  static void GetAggregateExprs(
+  static void GetAggregateAndTvExprs(
       std::vector<std::shared_ptr<AggregateExpression>> &aggr_exprs,
       std::vector<std::shared_ptr<TupleValueExpression>> &tv_exprs,
       AbstractExpression *expr) {
+    if (expr == nullptr) return;
     size_t children_size = expr->GetChildrenSize();
     if (IsAggregateExpression(expr->GetExpressionType()))
       aggr_exprs.emplace_back((AggregateExpression *)expr->Copy());
@@ -458,7 +459,8 @@ class ExpressionUtil {
       tv_exprs.emplace_back((TupleValueExpression *)expr->Copy());
     else {
       for (size_t i = 0; i < children_size; i++)
-        GetAggregateExprs(aggr_exprs, tv_exprs, expr->GetModifiableChild(i));
+        GetAggregateAndTvExprs(aggr_exprs, tv_exprs,
+                               expr->GetModifiableChild(i));
     }
   }
 
