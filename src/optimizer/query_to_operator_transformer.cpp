@@ -107,10 +107,14 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
     //    the outer query is in the form of IN.col = OUT.col
     if (require_agg) {
       vector<shared_ptr<expression::AbstractExpression>> new_group_by_cols;
-      for (auto &entry : outer_predicate_idx) {
+      for (auto &entry : predicates_by_depth_) {
+        auto outer_depth = entry.first;
+        if (outer_depth >= depth_) continue;
         if (!current_query_convertible) break;
-        auto outer_predicates = predicates_by_depth_[entry.first];
-        auto outer_idx = entry.second;
+        auto outer_predicates = predicates_by_depth_[outer_depth];
+        auto outer_idx = outer_predicate_idx.count(outer_depth) == 0
+                             ? 0
+                             : outer_predicate_idx[outer_depth];
         // Iterate through all the correlated predicates generated within
         // current query
         for (auto i = outer_idx; i < outer_predicates.size(); i++) {
