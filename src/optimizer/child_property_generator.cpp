@@ -451,10 +451,25 @@ void ChildPropertyGenerator::JoinHelper(const BaseOperatorNode *op) {
     UNUSED_ATTRIBUTE auto &right_table_alias =
         child_groups_[1]->GetTableAliases();
 
+
     for (const auto &child_col : child_cols) {
       std::unordered_set<std::string> table_alias_set;
       expression::ExpressionUtil::GenerateTableAliasSet(child_col.get(),
                                                         table_alias_set);
+//      for (auto &alias : table_alias_set) {
+//        LOG_DEBUG("Alias = %s, depth = %d", alias.c_str(), child_col->GetDepth());
+//      }
+//      std::string l = "";
+//      for (auto &alias : left_table_alias) {
+//        l += alias + " | ";
+//      }
+//      std::string r = "";
+//      for (auto &alias : right_table_alias) {
+//        r += alias + " | ";
+//      }
+//      LOG_DEBUG("Left Alias = %s", l.c_str());
+//      LOG_DEBUG("Right Alias = %s", r.c_str());
+
       if (util::IsSubset(left_table_alias, table_alias_set)) {
         // This column should be provided by the left child
         left_cols.push_back(child_col);

@@ -53,6 +53,8 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
   // Set depth of the current query
   depth_ = op->depth;
 
+  LOG_DEBUG("Visit select query with depth [%d]", depth_);
+
   // Init the convertible flag
   // Only if the current query has aggregation
   // and contains non-equality predicate correlated to the outer query
@@ -97,7 +99,10 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
     util::ExtractPredicates(cur_predicates, single_table_predicates_map,
                             join_predicates_, enable_predicate_push_down_);
     PL_ASSERT(single_table_predicates_map.size() + join_predicates_.size() ==
-              predicates_by_depth_[depth_].size());
+        cur_predicates.size());
+
+    LOG_DEBUG("Predicate size = %ld", cur_predicates.size());
+
 
     // Check whether the query can be converted into a join with the outer
     // query.
@@ -128,7 +133,7 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
             auto left_expr = pred->GetChild(0);
             auto right_expr = pred->GetChild(1);
             auto cur_depth_expr =
-                left_expr->GetDepth() > depth_ ? right_expr : left_expr;
+                left_expr->GetDepth() < depth_ ? right_expr : left_expr;
             new_group_by_cols.emplace_back(cur_depth_expr->Copy());
           } else {
             current_query_convertible = false;
@@ -200,6 +205,8 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
 
   // Restore subquery contexts
   subquery_contexts_ = std::move(pre_subquery_contexts);
+
+  LOG_DEBUG("Finish visiting select query with depth [%d]", depth_);
 }
 void QueryToOperatorTransformer::Visit(const parser::JoinDefinition *node) {
   // Get left operator
@@ -263,6 +270,7 @@ void QueryToOperatorTransformer::Visit(const parser::JoinDefinition *node) {
   join_expr->PushChild(right_expr);
 
   output_expr_ = join_expr;
+
 }
 
 void QueryToOperatorTransformer::Visit(const parser::TableRef *node) {
