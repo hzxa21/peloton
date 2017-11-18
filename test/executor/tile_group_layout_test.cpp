@@ -37,6 +37,7 @@
 #include "storage/tile.h"
 #include "storage/tile_group.h"
 #include "storage/data_table.h"
+#include "storage/table_factory.h"
 #include "concurrency/transaction.h"
 #include "concurrency/transaction_manager_factory.h"
 #include "executor/abstract_executor.h"

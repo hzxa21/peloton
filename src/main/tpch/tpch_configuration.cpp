@@ -13,6 +13,7 @@
 #include "benchmark/tpch/tpch_configuration.h"
 
 #include <sys/stat.h>
+#include "type/type.h"
 
 #include "common/logger.h"
 

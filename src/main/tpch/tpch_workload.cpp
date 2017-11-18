@@ -25,7 +25,7 @@ namespace tpch {
 
 TPCHBenchmark::TPCHBenchmark(const Configuration &config, TPCHDatabase &db)
     : config_(config), db_(db) {
-  query_configs_ = {
+  /*query_configs_ = {
       {"Q1",
        QueryId::Q1,
        {TableId::Lineitem},
@@ -135,7 +135,7 @@ TPCHBenchmark::TPCHBenchmark(const Configuration &config, TPCHDatabase &db)
        QueryId::Q22,
        {TableId::Lineitem},
        [&]() { return ConstructQ1Plan(); }},
-  };
+  };*/
 }
 
 void TPCHBenchmark::RunBenchmark() {
@@ -146,6 +146,18 @@ void TPCHBenchmark::RunBenchmark() {
     }
   }
 }
+
+void TPCHBenchmark::LoadTables() {
+  db_.LoadCustomerTable();
+  db_.LoadLineitemTable();
+  db_.LoadNationTable();
+  db_.LoadOrdersTable();
+  db_.LoadPartTable();
+  db_.LoadPartSupplierTable();
+  db_.LoadRegionTable();
+  db_.LoadSupplierTable();
+}
+
 
 void TPCHBenchmark::RunQuery(const TPCHBenchmark::QueryConfig &query_config) {
   LOG_INFO("Running TPCH %s", query_config.query_name.c_str());
@@ -184,7 +196,7 @@ void TPCHBenchmark::RunQuery(const TPCHBenchmark::QueryConfig &query_config) {
 
     // Execute query in a transaction
     codegen::Query::RuntimeStats runtime_stats;
-    compiled_query->Execute(*txn, counter.GetCountAsState(), &runtime_stats);
+    compiled_query->Execute(*txn, nullptr, counter.GetCountAsState(), &runtime_stats);
 
     // Commit transaction
     txn_manager.CommitTransaction(txn);

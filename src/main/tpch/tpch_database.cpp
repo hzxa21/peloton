@@ -10,17 +10,26 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <fcntl.h>
+#include <include/storage/storage_manager.h>
+#include <include/type/ephemeral_pool.h>
+#include <include/type/value_factory.h>
+#include <include/catalog/table_catalog.h>
+#include <include/catalog/column_catalog.h>
+
+#include "concurrency/transaction_manager_factory.h"
 #include "benchmark/tpch/tpch_database.h"
 
 #include "benchmark/tpch/tpch_workload.h"
 #include "catalog/catalog.h"
+#include "storage/table_factory.h"
 
 namespace peloton {
 namespace benchmark {
 namespace tpch {
 
 // The TPCH database ID and each of the tables it owns
-static constexpr oid_t kTPCHDatabaseId = 44;
+static oid_t kTPCHDatabaseId = 44;
 
 //===----------------------------------------------------------------------===//
 // Utility function to run a function over every line in the given file
@@ -87,11 +96,16 @@ uint32_t ConvertDate(char *p) {
 
 TPCHDatabase::TPCHDatabase(const Configuration &c) : config_(c) {
   // Create database instance
-  auto *database = new storage::Database(kTPCHDatabaseId);
+//  auto *database = new storage::Database(kTPCHDatabaseId);
+//  database->setDBName("tpch");
 
   // Add databse instance to catalog
-  catalog::Catalog::GetInstance()->AddDatabase(database);
+//  catalog::Catalog::GetInstance()->AddDatabase(database);
 
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto txn = txn_manager.BeginTransaction();
+  kTPCHDatabaseId = catalog::Catalog::GetInstance()->GetDatabaseWithName(DEFAULT_DB_NAME, txn)->GetOid();
+  txn_manager.CommitTransaction(txn);
   // Create all the test table
   CreateTables();
 
@@ -102,10 +116,10 @@ TPCHDatabase::TPCHDatabase(const Configuration &c) : config_(c) {
 }
 
 TPCHDatabase::~TPCHDatabase() {
-  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto *txn = txn_manager.BeginTransaction();
-  catalog::Catalog::GetInstance()->DropDatabaseWithOid(kTPCHDatabaseId, txn);
-  txn_manager.CommitTransaction(txn);
+//  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+//  auto *txn = txn_manager.BeginTransaction();
+//  catalog::Catalog::GetInstance()->DropDatabaseWithOid(kTPCHDatabaseId, txn);
+//  txn_manager.CommitTransaction(txn);
 }
 
 // Create all the TPCH tables
@@ -121,9 +135,43 @@ void TPCHDatabase::CreateTables() const {
   CreateSupplierTable();
 }
 
+void TPCHDatabase::CreateTable(storage::DataTable* dt, std::vector<catalog::Column> columns) const {
+  GetDatabase().AddTable(dt);
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto *txn = txn_manager.BeginTransaction();
+//  catalog::Catalog::GetInstance()->CreateTable(DEFAULT_DB_NAME, "customer", std::move(customer_schema), txn, false);
+  std::unique_ptr<type::AbstractPool> pool{new type::EphemeralPool()};
+
+  catalog::TableCatalog::GetInstance()->InsertTable(dt->GetOid(), dt->GetName(), GetDatabase().GetOid(),
+                                                    pool.get(), txn);
+
+  oid_t column_id = 0;
+  for (const auto &column : columns) {
+    catalog::ColumnCatalog::GetInstance()->InsertColumn(
+        dt->GetOid(), column.GetName(), column_id, column.GetOffset(),
+        column.GetType(), column.IsInlined(), column.GetConstraints(),
+        pool.get(), txn);
+    column_id++;
+
+    // Create index on unique single column
+    if (column.IsUnique()) {
+      std::string col_name = column.GetName();
+      std::string index_name = dt->GetName() + "_" + col_name + "_UNIQ";
+      catalog::Catalog::GetInstance()->CreateIndex(DEFAULT_DB_NAME, dt->GetName(), {column_id}, index_name, true,
+                                                   IndexType::BWTREE, txn);
+      LOG_DEBUG("Added a UNIQUE index on %s in %s.", col_name.c_str(),
+                column.GetName().c_str());
+    }
+  }
+
+  catalog::Catalog::GetInstance()->CreatePrimaryIndex(GetDatabase().GetOid(), dt->GetOid(), txn);
+
+  txn_manager.CommitTransaction(txn);
+}
+
 storage::Database &TPCHDatabase::GetDatabase() const {
-  auto *catalog = catalog::Catalog::GetInstance();
-  return *catalog->GetDatabaseWithOid(kTPCHDatabaseId);
+  auto store_manager = storage::StorageManager::GetInstance();
+  return *(store_manager->GetDatabaseWithOid(kTPCHDatabaseId));
 }
 
 storage::DataTable &TPCHDatabase::GetTable(TableId table_id) const {
@@ -154,12 +202,12 @@ uint32_t TPCHDatabase::CodeForMktSegment(const std::string mktsegment) const {
 void TPCHDatabase::CreateCustomerTable() const {
   catalog::Column c_custkey = {type::TypeId::INTEGER, kIntSize,
                                "c_custkey", true};
-  catalog::Column c_name = {type::TypeId::VARCHAR, 25, "c_name", false};
+  catalog::Column c_name = {type::TypeId::VARCHAR, 64, "c_name", false};
   catalog::Column c_address = {type::TypeId::VARCHAR, 40, "c_address",
                                false};
   catalog::Column c_nationkey = {type::TypeId::INTEGER, kIntSize,
                                  "c_nationkey", true};
-  catalog::Column c_phone = {type::TypeId::VARCHAR, 15, "c_phone", false};
+  catalog::Column c_phone = {type::TypeId::VARCHAR, 32, "c_phone", false};
   catalog::Column c_acctbal = {type::TypeId::DECIMAL, kDecimalSize,
                                "c_acctbal", true};
   catalog::Column c_mktsegment;
@@ -184,10 +232,10 @@ void TPCHDatabase::CreateCustomerTable() const {
   bool adapt_table = true;
   storage::DataTable *customer_table = storage::TableFactory::GetDataTable(
       kTPCHDatabaseId, (uint32_t)TableId::Customer, customer_schema.release(),
-      "Customer", config_.tuples_per_tile_group, owns_schema, adapt_table);
+      "customer", config_.tuples_per_tile_group, owns_schema, adapt_table);
 
   // Add the table to the database (we're releasing ownership at this point)
-  GetDatabase().AddTable(customer_table);
+  CreateTable(customer_table, customer_cols);
 }
 
 void TPCHDatabase::CreateLineitemTable() const {
@@ -212,7 +260,7 @@ void TPCHDatabase::CreateLineitemTable() const {
   if (config_.dictionary_encode) {
     l_linestatus = {type::TypeId::INTEGER, kIntSize, "l_linestatus"};
   } else {
-    l_linestatus = {type::TypeId::VARCHAR, 1, "l_returnflag"};
+    l_linestatus = {type::TypeId::VARCHAR, 1, "l_linestatus"};
   }
 
   catalog::Column l_shipdate = {type::TypeId::DATE, kDateSize, "l_shipdate"};
@@ -237,10 +285,11 @@ void TPCHDatabase::CreateLineitemTable() const {
   bool adapt_table = true;
   storage::DataTable *lineitem_table = storage::TableFactory::GetDataTable(
       kTPCHDatabaseId, (uint32_t)TableId::Lineitem, lineitem_schema.release(),
-      "Line Item", config_.tuples_per_tile_group, owns_schema, adapt_table);
+      "lineitem", config_.tuples_per_tile_group, owns_schema, adapt_table, false);
 
   // Add the table to the database (we're releasing ownership at this point)
-  GetDatabase().AddTable(lineitem_table);
+  CreateTable(lineitem_table, lineitem_cols);
+
 }
 
 void TPCHDatabase::CreateNationTable() const {
@@ -261,11 +310,11 @@ void TPCHDatabase::CreateNationTable() const {
   bool owns_schema = true;
   bool adapt_table = true;
   storage::DataTable *nation_table = storage::TableFactory::GetDataTable(
-      kTPCHDatabaseId, (uint32_t)TableId::Nation, nation_schema.release(), "Nation",
-      config_.tuples_per_tile_group, owns_schema, adapt_table);
+      kTPCHDatabaseId, (uint32_t)TableId::Nation, nation_schema.release(), "nation",
+      config_.tuples_per_tile_group, owns_schema, adapt_table, false);
 
   // Add the table to the database (we're releasing ownership at this point)
-  GetDatabase().AddTable(nation_table);
+  CreateTable(nation_table, nation_cols);
 }
 
 void TPCHDatabase::CreateOrdersTable() const {
@@ -273,8 +322,13 @@ void TPCHDatabase::CreateOrdersTable() const {
                                 "o_orderkey", true};
   catalog::Column o_custkey = {type::TypeId::INTEGER, kIntSize,
                                "o_custkey", true};
-  catalog::Column o_orderstatus = {type::TypeId::VARCHAR, 1,
-                                   "o_orderstatus", true};
+  catalog::Column o_orderstatus;
+  if (config_.dictionary_encode) {
+    o_orderstatus = {type::TypeId::INTEGER, kIntSize, "o_orderstatus"};
+  } else {
+    o_orderstatus = {type::TypeId::VARCHAR, 1, "o_orderstatus"};
+  };
+
   catalog::Column o_totalprice = {type::TypeId::DECIMAL, kDecimalSize,
                                   "o_totalprice", true};
   catalog::Column o_orderdate = {type::TypeId::DATE, kDateSize,
@@ -299,10 +353,11 @@ void TPCHDatabase::CreateOrdersTable() const {
   bool adapt_table = true;
   storage::DataTable *order_table = storage::TableFactory::GetDataTable(
       kTPCHDatabaseId, (uint32_t)TableId::Orders, order_schema.release(),
-      "Orders", config_.tuples_per_tile_group, owns_schema, adapt_table);
+      "orders", config_.tuples_per_tile_group, owns_schema, adapt_table, false);
 
   // Add the table to the database (we're releasing ownership at this point)
-  GetDatabase().AddTable(order_table);
+  CreateTable(order_table, orders_cols);
+
 }
 
 void TPCHDatabase::CreatePartTable() const {
@@ -343,18 +398,92 @@ void TPCHDatabase::CreatePartTable() const {
   bool owns_schema = true;
   bool adapt_table = true;
   storage::DataTable *part_table = storage::TableFactory::GetDataTable(
-      kTPCHDatabaseId, (uint32_t)TableId::Part, part_schema.release(), "Part",
-      config_.tuples_per_tile_group, owns_schema, adapt_table);
+      kTPCHDatabaseId, (uint32_t)TableId::Part, part_schema.release(), "part",
+      config_.tuples_per_tile_group, owns_schema, adapt_table, false);
 
   // Add the table to the database (we're releasing ownership at this point)
-  GetDatabase().AddTable(part_table);
+  CreateTable(part_table, part_cols);
 }
 
-void TPCHDatabase::CreatePartSupplierTable() const {}
+void TPCHDatabase::CreatePartSupplierTable() const {
+  // Define columns
+  catalog::Column ps_partkey = {type::TypeId::INTEGER, kIntSize, "ps_partkey"};
+  catalog::Column ps_suppkey = {type::TypeId::INTEGER, kIntSize, "ps_suppkey"};
+  catalog::Column ps_availqty = {type::TypeId::INTEGER, kIntSize, "ps_availqty"};
+  catalog::Column ps_supplycost = {type::TypeId::DECIMAL, kDecimalSize, "ps_supplycost"};
+  catalog::Column ps_comment = {type::TypeId::VARCHAR, 199, "ps_comment"};
 
-void TPCHDatabase::CreateRegionTable() const {}
+  auto ps_cols = {
+      ps_partkey,    ps_suppkey,       ps_availqty,  ps_supplycost,
+      ps_comment};
 
-void TPCHDatabase::CreateSupplierTable() const {}
+  // Create the schema
+  std::unique_ptr<catalog::Schema> ps_schema{
+      new catalog::Schema{ps_cols}};
+
+  // Create the table!
+  bool owns_schema = true;
+  bool adapt_table = true;
+  storage::DataTable *ps_table = storage::TableFactory::GetDataTable(
+      kTPCHDatabaseId, (uint32_t)TableId::PartSupp, ps_schema.release(),
+      "partsupp", config_.tuples_per_tile_group, owns_schema, adapt_table, false);
+
+  // Add the table to the database (we're releasing ownership at this point)
+  CreateTable(ps_table, ps_cols);
+}
+
+void TPCHDatabase::CreateRegionTable() const {
+  // Define columns
+  catalog::Column r_regionkey = {type::TypeId::INTEGER, kIntSize, "r_regionkey"};
+  catalog::Column r_name = {type::TypeId::VARCHAR, 25, "r_name"};
+  catalog::Column r_comment = {type::TypeId::VARCHAR, 152, "r_comment"};
+
+  auto r_cols = {
+      r_regionkey,    r_name,       r_comment};
+
+  // Create the schema
+  std::unique_ptr<catalog::Schema> r_schema{
+      new catalog::Schema{r_cols}};
+
+  // Create the table!
+  bool owns_schema = true;
+  bool adapt_table = true;
+  storage::DataTable *r_table = storage::TableFactory::GetDataTable(
+      kTPCHDatabaseId, (uint32_t)TableId::Region, r_schema.release(),
+      "region", config_.tuples_per_tile_group, owns_schema, adapt_table, false);
+
+  // Add the table to the database (we're releasing ownership at this point)
+  CreateTable(r_table, r_cols);
+}
+
+void TPCHDatabase::CreateSupplierTable() const {
+  // Define columns
+  catalog::Column s_suppkey = {type::TypeId::INTEGER, kIntSize, "s_suppkey"};
+  catalog::Column s_name = {type::TypeId::VARCHAR, 25, "s_name"};
+  catalog::Column s_address = {type::TypeId::VARCHAR, 40, "s_address"};
+  catalog::Column s_nationkey = {type::TypeId::INTEGER, kIntSize, "s_nationkey"};
+  catalog::Column s_phone = {type::TypeId::VARCHAR, 15, "s_phone"};
+  catalog::Column s_acctbal = {type::TypeId::DECIMAL, kDecimalSize, "s_acctbal"};
+  catalog::Column s_comment = {type::TypeId::VARCHAR, 101, "s_comment"};
+
+  auto s_cols = {
+      s_suppkey,    s_name,       s_address,  s_nationkey,
+      s_phone, s_acctbal, s_comment};
+
+  // Create the schema
+  std::unique_ptr<catalog::Schema> s_schema{
+      new catalog::Schema{s_cols}};
+
+  // Create the table!
+  bool owns_schema = true;
+  bool adapt_table = true;
+  storage::DataTable *s_table = storage::TableFactory::GetDataTable(
+      kTPCHDatabaseId, (uint32_t)TableId::Supplier, s_schema.release(),
+      "supplier", config_.tuples_per_tile_group, owns_schema, adapt_table, false);
+
+  // Add the table to the database (we're releasing ownership at this point)
+  CreateTable(s_table, s_cols);
+}
 
 //===----------------------------------------------------------------------===//
 // TABLE LOADERS
@@ -451,7 +580,11 @@ void TPCHDatabase::LoadPartTable() {
   });
 
   // Commit
-  PL_ASSERT(txn_manager.CommitTransaction(txn) == ResultType::SUCCESS);
+  auto res = txn_manager.CommitTransaction(txn);
+  PL_ASSERT(res == ResultType::SUCCESS);
+  if (res != ResultType::SUCCESS) {
+    LOG_ERROR("Could not commit transaction during load!");
+  }
 
   timer.Stop();
   LOG_INFO("Loading Part finished: %.2f ms (%lu tuples)\n",
@@ -461,16 +594,160 @@ void TPCHDatabase::LoadPartTable() {
   SetTableIsLoaded(TableId::Part);
 }
 
-void TPCHDatabase::LoadSupplierTable() {}
+void TPCHDatabase::LoadSupplierTable() {
+  // Short-circuit if table is already loaded
+  if (TableIsLoaded(TableId::Supplier)) {
+    return;
+  }
 
-void TPCHDatabase::LoadPartSupplierTable() {}
+  const std::string filename = config_.GetSupplierPath();
+
+  LOG_INFO("Loading Supplier ['%s']\n", filename.c_str());
+
+  uint64_t num_tuples = 0;
+
+  auto &table = GetTable(TableId::Supplier);
+
+  std::unique_ptr<type::AbstractPool> pool{new type::EphemeralPool()};
+
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto *txn = txn_manager.BeginTransaction();
+
+  Timer<std::ratio<1, 1000>> timer;
+  timer.Start();
+
+  ForEachLine(filename, [&](char *p) {
+    // The input tuple
+    storage::Tuple tuple{table.GetSchema(), /*allocate*/ true};
+
+    tuple.SetValue(0, type::ValueFactory::GetIntegerValue(std::atoi(p)));
+
+    p = strchr(p, '|') + 1;
+    char *p_end = strchr(p, '|');
+    tuple.SetValue(1, type::ValueFactory::GetVarcharValue(std::string{p, p_end}),
+                   pool.get());
+
+    p = p_end + 1;
+    p_end = strchr(p, '|');
+    tuple.SetValue(2, type::ValueFactory::GetVarcharValue(std::string{p, p_end}),
+                   pool.get());
+
+    p = p_end + 1;
+    p_end = strchr(p, '|');
+    tuple.SetValue(3, type::ValueFactory::GetIntegerValue(std::atoi(p)));
+
+    p = p_end + 1;
+    p_end = strchr(p, '|');
+    tuple.SetValue(4, type::ValueFactory::GetVarcharValue(std::string{p, p_end}),
+                   pool.get());
+
+    p = p_end + 1;
+    p_end = strchr(p, '|');
+    tuple.SetValue(5, type::ValueFactory::GetDecimalValue(std::atof(p)));
+
+    p = p_end + 1;
+    p_end = strchr(p, '|');
+    tuple.SetValue(6, type::ValueFactory::GetVarcharValue(std::string{p, p_end}),
+                   pool.get());
+
+
+
+    // Insert into table
+    ItemPointer tuple_slot_id = table.InsertTuple(&tuple);
+    PL_ASSERT(tuple_slot_id.block != INVALID_OID);
+    PL_ASSERT(tuple_slot_id.offset != INVALID_OID);
+    txn_manager.PerformInsert(txn, tuple_slot_id);
+
+    num_tuples++;
+  });
+
+  // Commit
+  auto res = txn_manager.CommitTransaction(txn);
+  PL_ASSERT(res == ResultType::SUCCESS);
+  if (res != ResultType::SUCCESS) {
+    LOG_ERROR("Could not commit transaction during load!");
+  }
+
+  timer.Stop();
+  LOG_INFO("Loading Supplier finished: %.2f ms (%lu tuples)\n",
+           timer.GetDuration(), num_tuples);
+
+  // Set table as loaded
+  SetTableIsLoaded(TableId::Supplier);
+}
+
+void TPCHDatabase::LoadPartSupplierTable() {
+  // Short-circuit if table is already loaded
+  if (TableIsLoaded(TableId::PartSupp)) {
+    return;
+  }
+
+  const std::string filename = config_.GetPartSuppPath();
+
+  LOG_INFO("Loading PartSupp ['%s']\n", filename.c_str());
+
+  uint64_t num_tuples = 0;
+
+  auto &table = GetTable(TableId::PartSupp);
+
+  std::unique_ptr<type::AbstractPool> pool{new type::EphemeralPool()};
+
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto *txn = txn_manager.BeginTransaction();
+
+  Timer<std::ratio<1, 1000>> timer;
+  timer.Start();
+
+  ForEachLine(filename, [&](char *p) {
+    // The input tuple
+    storage::Tuple tuple{table.GetSchema(), /*allocate*/ true};
+
+    tuple.SetValue(0, type::ValueFactory::GetIntegerValue(std::atoi(p)));
+
+    p = strchr(p, '|') + 1;
+    tuple.SetValue(1, type::ValueFactory::GetIntegerValue(std::atoi(p)));
+
+    p = strchr(p, '|') + 1;
+    tuple.SetValue(2, type::ValueFactory::GetIntegerValue(std::atoi(p)));
+
+    p = strchr(p, '|') + 1;
+    tuple.SetValue(3, type::ValueFactory::GetDecimalValue(std::atof(p)));
+
+    p = strchr(p, '|') + 1;
+    char *p_end = strchr(p, '|');
+    tuple.SetValue(4, type::ValueFactory::GetVarcharValue(std::string{p, p_end}),
+                   pool.get());
+
+    // Insert into table
+    ItemPointer tuple_slot_id = table.InsertTuple(&tuple);
+    PL_ASSERT(tuple_slot_id.block != INVALID_OID);
+    PL_ASSERT(tuple_slot_id.offset != INVALID_OID);
+    txn_manager.PerformInsert(txn, tuple_slot_id);
+
+    num_tuples++;
+  });
+
+  // Commit
+  auto res = txn_manager.CommitTransaction(txn);
+  PL_ASSERT(res == ResultType::SUCCESS);
+  if (res != ResultType::SUCCESS) {
+    LOG_ERROR("Could not commit transaction during load!");
+  }
+
+  timer.Stop();
+  LOG_INFO("Loading PartSupp finished: %.2f ms (%lu tuples)\n",
+           timer.GetDuration(), num_tuples);
+
+  // Set table as loaded
+  SetTableIsLoaded(TableId::PartSupp);
+}
 
 void TPCHDatabase::LoadCustomerTable() {
   if (TableIsLoaded(TableId::Customer)) {
     return;
   }
 
-  const std::string filename = config_.GetPartPath();
+  const std::string filename = config_.GetCustomerPath();
 
   LOG_INFO("Loading Customer ['%s']\n", filename.c_str());
 
@@ -550,7 +827,11 @@ void TPCHDatabase::LoadCustomerTable() {
   });
 
   // Commit
-  PL_ASSERT(txn_manager.CommitTransaction(txn) == ResultType::SUCCESS);
+  auto res = txn_manager.CommitTransaction(txn);
+  PL_ASSERT(res == ResultType::SUCCESS);
+  if (res != ResultType::SUCCESS) {
+    LOG_ERROR("Could not commit transaction during load!");
+  }
 
   timer.Stop();
   LOG_INFO("Loading Customer finished: %.2f ms (%lu tuples)\n",
@@ -560,7 +841,67 @@ void TPCHDatabase::LoadCustomerTable() {
   SetTableIsLoaded(TableId::Customer);
 }
 
-void TPCHDatabase::LoadNationTable() {}
+void TPCHDatabase::LoadNationTable() {
+  if (TableIsLoaded(TableId::Nation)) {
+    return;
+  }
+
+  const std::string filename = config_.GetNationPath();
+
+  LOG_INFO("Loading Nation ['%s']\n", filename.c_str());
+
+  auto &table = GetTable(TableId::Nation);
+
+  Timer<std::ratio<1, 1000>> timer;
+  timer.Start();
+
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto *txn = txn_manager.BeginTransaction();
+
+  uint64_t num_tuples = 0;
+  std::unique_ptr<type::AbstractPool> pool{new type::EphemeralPool()};
+
+  ForEachLine(filename, [&](char *p){
+    storage::Tuple tuple{table.GetSchema(), true /* allocate */};
+
+    tuple.SetValue(0, type::ValueFactory::GetIntegerValue(std::atoi(p)));
+
+    p = strchr(p, '|') + 1;
+    char *p_end = strchr(p, '|');
+    tuple.SetValue(1, type::ValueFactory::GetVarcharValue(std::string{p, p_end}), pool.get());
+
+    p = p_end + 1;
+    p_end = strchr(p, '|');
+    tuple.SetValue(2, type::ValueFactory::GetIntegerValue(std::atoi(p)));
+
+    p = p_end + 1;
+    p_end = strchr(p, '|');
+    tuple.SetValue(3, type::ValueFactory::GetVarcharValue(std::string{p, p_end}), pool.get());
+
+    // Insert into table
+    ItemPointer tuple_slot_id = table.InsertTuple(&tuple);
+    PL_ASSERT(tuple_slot_id.block != INVALID_OID);
+    PL_ASSERT(tuple_slot_id.offset != INVALID_OID);
+    txn_manager.PerformInsert(txn, tuple_slot_id);
+
+    num_tuples++;
+
+  });
+
+  // Commit
+  auto res = txn_manager.CommitTransaction(txn);
+  PL_ASSERT(res == ResultType::SUCCESS);
+  if (res != ResultType::SUCCESS) {
+    LOG_ERROR("Could not commit transaction during load!");
+  }
+
+  timer.Stop();
+  LOG_INFO("Loading Nation finished: %.2f ms (%lu tuples)\n",
+           timer.GetDuration(), num_tuples);
+
+  // Set table as loaded
+  SetTableIsLoaded(TableId::Nation);
+}
 
 void TPCHDatabase::LoadLineitemTable() {
   // Short-circuit if table is already loaded
@@ -681,9 +1022,153 @@ void TPCHDatabase::LoadLineitemTable() {
   SetTableIsLoaded(TableId::Lineitem);
 }
 
-void TPCHDatabase::LoadRegionTable() {}
+void TPCHDatabase::LoadRegionTable() {
+  // Short-circuit if table is already loaded
+  if (TableIsLoaded(TableId::Region)) {
+    return;
+  }
 
-void TPCHDatabase::LoadOrdersTable() {}
+  const std::string filename = config_.GetRegionPath();
+
+  LOG_INFO("Loading Region ['%s']\n", filename.c_str());
+
+  uint64_t num_tuples = 0;
+
+  auto &table = GetTable(TableId::Region);
+
+  std::unique_ptr<type::AbstractPool> pool{new type::EphemeralPool()};
+
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto *txn = txn_manager.BeginTransaction();
+
+  Timer<std::ratio<1, 1000>> timer;
+  timer.Start();
+
+  ForEachLine(filename, [&](char *p) {
+    // The input tuple
+    storage::Tuple tuple{table.GetSchema(), /*allocate*/ true};
+
+    tuple.SetValue(0, type::ValueFactory::GetIntegerValue(std::atoi(p)));
+
+    p = strchr(p, '|') + 1;
+    char *p_end = strchr(p, '|');
+    tuple.SetValue(1, type::ValueFactory::GetVarcharValue(std::string{p, p_end}),
+                   pool.get());
+
+    p = p_end + 1;
+    p_end = strchr(p, '|');
+    tuple.SetValue(2, type::ValueFactory::GetVarcharValue(std::string{p, p_end}),
+                   pool.get());
+
+
+    // Insert into table
+    ItemPointer tuple_slot_id = table.InsertTuple(&tuple);
+    PL_ASSERT(tuple_slot_id.block != INVALID_OID);
+    PL_ASSERT(tuple_slot_id.offset != INVALID_OID);
+    txn_manager.PerformInsert(txn, tuple_slot_id);
+
+    num_tuples++;
+  });
+
+  // Commit
+  auto res = txn_manager.CommitTransaction(txn);
+  PL_ASSERT(res == ResultType::SUCCESS);
+  if (res != ResultType::SUCCESS) {
+    LOG_ERROR("Could not commit transaction during load!");
+  }
+
+  timer.Stop();
+  LOG_INFO("Loading Region finished: %.2f ms (%lu tuples)\n",
+           timer.GetDuration(), num_tuples);
+
+  // Set table as loaded
+  SetTableIsLoaded(TableId::Region);
+}
+
+void TPCHDatabase::LoadOrdersTable() {
+  // Short-circuit if table is already loaded
+  if (TableIsLoaded(TableId::Orders)) {
+    return;
+  }
+
+  const std::string filename = config_.GetOrdersPath();
+
+  LOG_INFO("Loading Orders ['%s']\n", filename.c_str());
+
+  uint64_t num_tuples = 0;
+
+  auto &table = GetTable(TableId::Orders);
+
+  std::unique_ptr<type::AbstractPool> pool{new type::EphemeralPool()};
+
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto *txn = txn_manager.BeginTransaction();
+
+  Timer<std::ratio<1, 1000>> timer;
+  timer.Start();
+
+  ForEachLine(filename, [&](char *p) {
+    // The input tuple
+    storage::Tuple tuple{table.GetSchema(), /*allocate*/ true};
+
+    tuple.SetValue(0, type::ValueFactory::GetIntegerValue(std::atoi(p)));
+
+    p = strchr(p, '|') + 1;
+    tuple.SetValue(1, type::ValueFactory::GetIntegerValue(std::atoi(p)));
+
+    p = strchr(p, '|') + 1;
+    tuple.SetValue(2, type::ValueFactory::GetIntegerValue(std::atoi(p)));
+
+    p = strchr(p, '|') + 1;
+    tuple.SetValue(3, type::ValueFactory::GetDecimalValue(std::atof(p)));
+
+    p = strchr(p, '|') + 1;
+    tuple.SetValue(4,
+                   type::ValueFactory::GetDateValue(ConvertDate(p)));
+
+    p = strchr(p, '|') + 1;
+    char *p_end = strchr(p, '|');
+    tuple.SetValue(5, type::ValueFactory::GetVarcharValue(std::string{p, p_end}),
+                   pool.get());
+
+    p = p_end + 1;
+    p_end = strchr(p, '|');
+    tuple.SetValue(6, type::ValueFactory::GetVarcharValue(std::string{p, p_end}),
+                   pool.get());
+
+    p = p_end + 1;
+    p_end = strchr(p, '|');
+    tuple.SetValue(7, type::ValueFactory::GetIntegerValue(std::atoi(p)));
+
+    p = p_end + 1;
+    p_end = strchr(p, '|');
+    tuple.SetValue(8,
+                   type::ValueFactory::GetVarcharValue(std::string{p, p_end}),
+                   pool.get());
+
+    // Insert into table
+    ItemPointer tuple_slot_id = table.InsertTuple(&tuple);
+    PL_ASSERT(tuple_slot_id.block != INVALID_OID);
+    PL_ASSERT(tuple_slot_id.offset != INVALID_OID);
+    txn_manager.PerformInsert(txn, tuple_slot_id);
+
+    num_tuples++;
+  });
+
+  // Commit
+  auto res = txn_manager.CommitTransaction(txn);
+  PL_ASSERT(res == ResultType::SUCCESS);
+  if (res != ResultType::SUCCESS) {
+    LOG_ERROR("Could not commit transaction during load!");
+  }
+
+  timer.Stop();
+  LOG_INFO("Loading Orders finished: %.2f ms (%lu tuples)\n",
+           timer.GetDuration(), num_tuples);
+
+  // Set table as loaded
+  SetTableIsLoaded(TableId::Orders);
+}
 
 }  // namespace tpch
 }  // namespace benchmark

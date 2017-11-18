@@ -27,7 +27,7 @@
 namespace peloton {
 namespace benchmark {
 namespace tpch {
-
+/*
 static int32_t _1995_03_10 = 794811600;
 
 std::unique_ptr<planner::AbstractPlan> TPCHBenchmark::ConstructQ3Plan() const {
@@ -247,7 +247,7 @@ std::unique_ptr<planner::AbstractPlan> TPCHBenchmark::ConstructQ3Plan() const {
   return sort_plan;
 
 }
-
+*/
 }  // namespace tpch
 }  // namespace benchmark
 }  // namespace peloton

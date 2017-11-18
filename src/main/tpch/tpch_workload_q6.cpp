@@ -29,7 +29,7 @@ namespace tpch {
 
 static constexpr int32_t _1997_01_01 = 852094800;
 static constexpr int32_t _1998_01_01 = 883630800;
-
+/*
 std::unique_ptr<planner::AbstractPlan> TPCHBenchmark::ConstructQ6Plan() const {
   auto &lineitem = db_.GetTable(TableId::Lineitem);
 
@@ -132,7 +132,7 @@ std::unique_ptr<planner::AbstractPlan> TPCHBenchmark::ConstructQ6Plan() const {
 
   return aggregation_plan;
 }
-
+*/
 }  // namespace tpch
 }  // namespace benchmark
 }  // namespace peloton

@@ -68,7 +68,7 @@ SETTING_bool(display_settings, "Display settings (default: false)", false,
 
 // Enable or disable statistics collection
 SETTING_int(stats_mode, "Enable statistics collection (default: 0)",
-            peloton::STATS_TYPE_ENABLE, true, true)
+            peloton::STATS_TYPE_INVALID, true, true)
 
 //===----------------------------------------------------------------------===//
 // AI

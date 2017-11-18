@@ -27,7 +27,7 @@ namespace benchmark {
 namespace tpch {
 
 static constexpr int32_t _1998_08_28 = 904276800;
-
+/*
 std::unique_ptr<planner::AbstractPlan> TPCHBenchmark::ConstructQ1Plan() const {
   auto &lineitem = db_.GetTable(TableId::Lineitem);
 
@@ -164,6 +164,7 @@ std::unique_ptr<planner::AbstractPlan> TPCHBenchmark::ConstructQ1Plan() const {
 
   return sort_plan;
 }
+ */
 
 }  // namespace tpch
 }  // namespace benchmark

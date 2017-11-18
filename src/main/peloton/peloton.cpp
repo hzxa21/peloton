@@ -19,6 +19,7 @@
 #include "network/network_manager.h"
 #include "settings/settings_manager.h"
 
+
 DECLARE_bool(help);
 
 // Peloton process begins execution here.
@@ -48,6 +49,8 @@ int main(int argc, char *argv[]) {
 
     // Create NetworkManager object
     peloton::network::NetworkManager network_manager;
+
+
 
     // Start NetworkManager
     network_manager.StartServer();

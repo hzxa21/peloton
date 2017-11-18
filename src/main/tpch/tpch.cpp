@@ -103,7 +103,7 @@ void RunBenchmark(const Configuration &config) {
   TPCHBenchmark tpch_benchmark{config, tpch_db};
 
   // Run the benchmark
-  tpch_benchmark.RunBenchmark();
+  tpch_benchmark.LoadTables();
 }
 
 }  // namespace tpch
