@@ -238,6 +238,9 @@ executor::ExecuteResult TrafficCop::ExecuteStatementPlan(
 
 void TrafficCop::ExecutePlanWrapper(void *arg_ptr) {
   LOG_TRACE("Entering ExecutePlanWrapper");
+  Timer<std::ratio<1, 1000>> timer;
+  if (settings::SettingsManager::GetBool(settings::SettingId::show_timer))
+    timer.Start();
   PL_ASSERT(arg_ptr);
   ExecutePlanArg *arg = (ExecutePlanArg *)arg_ptr;
   PL_ASSERT(arg->plan_);
@@ -247,6 +250,10 @@ void TrafficCop::ExecutePlanWrapper(void *arg_ptr) {
   executor::PlanExecutor::ExecutePlan(arg->plan_, arg->txn_, arg->params_,
                                       arg->result_, arg->result_format_,
                                       arg->p_status_);
+  if (settings::SettingsManager::GetBool(settings::SettingId::show_timer)) {
+    timer.Stop();
+    LOG_INFO("Execution time = %.4f", timer.GetDuration());
+  }
   delete (arg);
 }
 
@@ -292,6 +299,9 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     const size_t thread_id UNUSED_ATTRIBUTE) {
   LOG_TRACE("Prepare Statement name: %s", statement_name.c_str());
   LOG_TRACE("Prepare Statement query: %s", query_string.c_str());
+  Timer<std::ratio<1, 1000>> timer;
+  if (settings::SettingsManager::GetBool(settings::SettingId::show_timer))
+    timer.Start();
 
   std::shared_ptr<Statement> statement(
       new Statement(statement_name, query_string));
@@ -361,6 +371,10 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
       LOG_TRACE("Statement Prepared: %s", statement->GetInfo().c_str());
       LOG_INFO("%s", planner::PlanUtil::GetInfo(statement->GetPlanTree().get())
                          .c_str());
+    }
+    if (settings::SettingsManager::GetBool(settings::SettingId::show_timer)) {
+      timer.Stop();
+      LOG_INFO("Prepare time = %.4f", timer.GetDuration());
     }
     return statement;
   } catch (Exception &e) {

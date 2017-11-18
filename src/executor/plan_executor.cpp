@@ -95,7 +95,9 @@ void PlanExecutor::ExecutePlan(
     CleanExecutorTree(executor_tree.get());
     return;
   }
-
+  if (settings::SettingsManager::GetBool(settings::SettingId::show_timer)) {
+    LOG_INFO("Codegen");
+  }
   LOG_TRACE("Compiling and executing query ...");
   // Perform binding
   planner::BindingContext context;

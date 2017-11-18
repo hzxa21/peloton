@@ -68,7 +68,7 @@ SETTING_bool(display_settings, "Display settings (default: false)", false,
 
 // Enable or disable statistics collection
 SETTING_int(stats_mode, "Enable statistics collection (default: 0)",
-            peloton::STATS_TYPE_INVALID, true, true)
+            peloton::STATS_TYPE_ENABLE, true, true)
 
 //===----------------------------------------------------------------------===//
 // AI
@@ -100,6 +100,11 @@ SETTING_bool(predicate_push_down,
 SETTING_bool(
     hash_join_bloom_filter,
     "Enable bloom filter for hash join in codegen (default: true)",
+    false, true, true)
+
+SETTING_bool(
+    show_timer,
+    "Show planning and execution time (default: false)",
     false, true, true)
 
 //===----------------------------------------------------------------------===//

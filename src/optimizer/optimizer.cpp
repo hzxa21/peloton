@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <memory>
+#include <include/settings/settings_manager.h>
 
 #include "optimizer/optimizer.h"
 
@@ -97,6 +98,13 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
   if (is_ddl_stmt) {
     return move(ddl_plan);
   }
+  if (parse_tree->GetType() == StatementType::SELECT)
+    settings::SettingsManager::SetBool(settings::SettingId::show_timer, true);
+  if (parse_tree->GetType() == StatementType::UPDATE)
+    settings::SettingsManager::SetBool(settings::SettingId::codegen, false);
+  if (parse_tree->GetType() == StatementType::DELETE)
+    settings::SettingsManager::SetBool(settings::SettingId::codegen, true);
+
   // Run binder
   auto bind_node_visitor = make_shared<binder::BindNodeVisitor>(txn);
   bind_node_visitor->BindNameToNode(parse_tree);
