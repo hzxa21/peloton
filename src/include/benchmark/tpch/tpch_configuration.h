@@ -92,7 +92,7 @@ struct Configuration {
   std::string suffix;
 
   // Do we dictionary encode strings?
-  bool dictionary_encode = true;
+  bool dictionary_encode = false;
 
   // Which queries will the benchmark run?
   bool queries_to_run[22] = {false};

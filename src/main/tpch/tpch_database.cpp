@@ -266,8 +266,18 @@ void TPCHDatabase::CreateLineitemTable() const {
   catalog::Column l_shipdate = {type::TypeId::DATE, kDateSize, "l_shipdate"};
   catalog::Column l_commitdate = {type::TypeId::DATE, kDateSize, "l_commitdate"};
   catalog::Column l_receiptdate = {type::TypeId::DATE, kDateSize, "l_receiptdate"};
-  catalog::Column l_shipinstruct = {type::TypeId::INTEGER, kIntSize, "l_shipinstruct"};
-  catalog::Column l_shipmode = {type::TypeId::INTEGER, kIntSize, "l_shipmode"};
+  catalog::Column l_shipinstruct;
+  if (config_.dictionary_encode) {
+    l_shipinstruct = {type::TypeId::INTEGER, kIntSize, "l_shipinstruct"};
+  } else {
+    l_shipinstruct = {type::TypeId::VARCHAR, 25, "l_shipinstruct"};
+  }
+  catalog::Column l_shipmode;
+  if (config_.dictionary_encode) {
+    l_shipmode = {type::TypeId::INTEGER, kIntSize, "l_shipmode"};
+  } else {
+    l_shipmode = {type::TypeId::VARCHAR, 10, "l_shipmode"};
+  }
   catalog::Column l_comment = {type::TypeId::VARCHAR, 44, "l_comment"};
 
   auto lineitem_cols = {
@@ -550,19 +560,21 @@ void TPCHDatabase::LoadPartTable() {
     tuple.SetValue(4, type::ValueFactory::GetVarcharValue(std::string{p, p_end}), pool.get());
 
     p = p_end + 1;
+    p_end = strchr(p, '|');
     tuple.SetValue(5, type::ValueFactory::GetIntegerValue(std::atoi(p)));
 
     p = p_end + 1;
     p_end = strchr(p, '|');
     std::string p_container{p, p_end};
     if (config_.dictionary_encode) {
-      uint32_t code = DictionaryEncode(p_container_dict_, p_brand);
+      uint32_t code = DictionaryEncode(p_container_dict_, p_container);
       tuple.SetValue(6, type::ValueFactory::GetIntegerValue(code));
     } else {
       tuple.SetValue(6, type::ValueFactory::GetVarcharValue(p_container), pool.get());
     }
 
     p = p_end + 1;
+    p_end = strchr(p, '|');
     tuple.SetValue(7, type::ValueFactory::GetDecimalValue(std::atof(p)));
 
     p = p_end + 1;
@@ -955,11 +967,19 @@ void TPCHDatabase::LoadLineitemTable() {
 
     p = strchr(p, '|') + 1;
     char returnflag = *p;
-    tuple.SetValue(8, type::ValueFactory::GetIntegerValue(returnflag));
+    if (config_.dictionary_encode) {
+      tuple.SetValue(8, type::ValueFactory::GetIntegerValue(returnflag));
+    } else {
+      tuple.SetValue(8, type::ValueFactory::GetVarcharValue(std::string(1, returnflag)), pool.get());
+    }
 
     p = strchr(p, '|') + 1;
     char linestatus = *p;
-    tuple.SetValue(9, type::ValueFactory::GetIntegerValue(linestatus));
+    if (config_.dictionary_encode) {
+      tuple.SetValue(9, type::ValueFactory::GetIntegerValue(linestatus));
+    } else {
+      tuple.SetValue(9, type::ValueFactory::GetVarcharValue(std::string(1, linestatus)), pool.get());
+    }
 
     p = strchr(p, '|') + 1;
     tuple.SetValue(10, type::ValueFactory::GetDateValue(ConvertDate(p)));
@@ -988,7 +1008,7 @@ void TPCHDatabase::LoadLineitemTable() {
       uint32_t code = DictionaryEncode(l_shipmode_dict_, l_shipmode);
       tuple.SetValue(14, type::ValueFactory::GetIntegerValue(code));
     } else {
-      tuple.SetValue(14, type::ValueFactory::GetVarcharValue(l_shipinstruct),
+      tuple.SetValue(14, type::ValueFactory::GetVarcharValue(l_shipmode),
                      pool.get());
     }
 

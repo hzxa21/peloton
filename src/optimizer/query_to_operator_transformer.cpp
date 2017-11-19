@@ -98,11 +98,17 @@ void QueryToOperatorTransformer::Visit(parser::SelectStatement *op) {
     auto &cur_predicates = predicates_by_depth_[depth_];
     util::ExtractPredicates(cur_predicates, single_table_predicates_map,
                             join_predicates_, enable_predicate_push_down_);
-    PL_ASSERT(single_table_predicates_map.size() + join_predicates_.size() ==
+
+#ifdef LOG_DEBUG_ENABLED
+    size_t single_predicate_cnts = 0;
+    for (auto& entry : single_table_predicates_map) {
+      single_predicate_cnts += entry.second.size();
+    }
+    PL_ASSERT(single_predicate_cnts + join_predicates_.size() ==
         cur_predicates.size());
 
     LOG_DEBUG("Predicate size = %ld", cur_predicates.size());
-
+#endif
 
     // Check whether the query can be converted into a join with the outer
     // query.
