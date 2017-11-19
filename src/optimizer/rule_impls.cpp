@@ -101,7 +101,7 @@ void GetToSeqScan::Transform(
   auto result_plan = std::make_shared<OperatorExpression>(
       PhysicalSeqScan::make(get->get_id, get->table, get->table_alias,
                             get->predicate, get->is_for_update));
-  result_plan->SetLimit(input->GetLimit());
+  result_plan->SetDistinct(input->GetDistinct());
 
   UNUSED_ATTRIBUTE std::vector<std::shared_ptr<OperatorExpression>> children =
       input->Children();
@@ -139,7 +139,7 @@ void GetToIndexScan::Transform(
   auto result_plan = std::make_shared<OperatorExpression>(
       PhysicalIndexScan::make(get->get_id, get->table, get->table_alias,
                               get->predicate, get->is_for_update));
-  result_plan->SetLimit(input->GetLimit());
+  result_plan->SetDistinct(input->GetDistinct());
 
   UNUSED_ATTRIBUTE std::vector<std::shared_ptr<OperatorExpression>> children =
       input->Children();
@@ -559,7 +559,6 @@ void OuterJoinToOuterNLJoin::Transform(
   const LogicalOuterJoin *outer_join = input->Op().As<LogicalOuterJoin>();
   auto result_plan = std::make_shared<OperatorExpression>(
       PhysicalOuterNLJoin::make(outer_join->join_predicate));
-  result_plan->SetLimit(input->GetLimit());
   std::vector<std::shared_ptr<OperatorExpression>> children = input->Children();
   PL_ASSERT(children.size() == 3);
 
@@ -621,7 +620,6 @@ void InnerJoinToInnerHashJoin::Transform(
   auto result_plan = std::make_shared<OperatorExpression>(
       PhysicalInnerHashJoin::make(inner_join->join_predicate));
 
-  result_plan->SetLimit(input->GetLimit());
   std::vector<std::shared_ptr<OperatorExpression>> children = input->Children();
   PL_ASSERT(children.size() == 2);
 

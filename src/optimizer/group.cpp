@@ -20,10 +20,11 @@ namespace optimizer {
 //===--------------------------------------------------------------------===//
 // Group
 //===--------------------------------------------------------------------===//
-Group::Group(GroupID id, std::unordered_set<std::string> table_aliases, int limit)
-    : id_(id), table_aliases_(std::move(table_aliases)), limit_(limit) {
+Group::Group(GroupID id, std::unordered_set<std::string> table_aliases,  std::vector<std::shared_ptr<expression::AbstractExpression>> distinct_column_exprs)
+    : id_(id), table_aliases_(std::move(table_aliases)) {
   has_explored_ = false;
   has_implemented_ = false;
+  distinct_column_exprs_ = distinct_column_exprs;
 }
 void Group::add_item(Operator op) {
   // TODO(abpoms): do duplicate checking

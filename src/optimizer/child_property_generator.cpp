@@ -456,19 +456,6 @@ void ChildPropertyGenerator::JoinHelper(const BaseOperatorNode *op) {
       std::unordered_set<std::string> table_alias_set;
       expression::ExpressionUtil::GenerateTableAliasSet(child_col.get(),
                                                         table_alias_set);
-//      for (auto &alias : table_alias_set) {
-//        LOG_DEBUG("Alias = %s, depth = %d", alias.c_str(), child_col->GetDepth());
-//      }
-//      std::string l = "";
-//      for (auto &alias : left_table_alias) {
-//        l += alias + " | ";
-//      }
-//      std::string r = "";
-//      for (auto &alias : right_table_alias) {
-//        r += alias + " | ";
-//      }
-//      LOG_DEBUG("Left Alias = %s", l.c_str());
-//      LOG_DEBUG("Right Alias = %s", r.c_str());
 
       if (util::IsSubset(left_table_alias, table_alias_set)) {
         // This column should be provided by the left child
@@ -489,16 +476,16 @@ void ChildPropertyGenerator::JoinHelper(const BaseOperatorNode *op) {
   auto r_property_set =
       PropertySet({make_shared<PropertyColumns>(std::move(right_cols))});
 
-  auto l_limit = child_groups_[0]->GetLimit();
-  auto r_limit = child_groups_[1]->GetLimit();
+  auto l_distinct = std::move(child_groups_[0]->GetDistinct());
+  auto r_distinct = std::move(child_groups_[1]->GetDistinct());
 
-  if (l_limit >= 0)
-    l_property_set.AddProperty(make_shared<PropertyLimit>(0, l_limit));
-  if (r_limit >= 0)
-    r_property_set.AddProperty(make_shared<PropertyLimit>(0, r_limit));
+  if (!l_distinct.empty())
+    l_property_set.AddProperty(make_shared<PropertyDistinct>(l_distinct));
+  if (!r_distinct.empty())
+    r_property_set.AddProperty(make_shared<PropertyDistinct>(r_distinct));
 
   child_input_propertys.push_back(l_property_set);
-  child_input_propertys.emplace_back(r_property_set);
+  child_input_propertys.push_back(r_property_set);
 
   output_.push_back(make_pair(provided_property, child_input_propertys));
 }

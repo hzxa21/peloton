@@ -36,14 +36,18 @@ class OperatorExpression {
 
   const Operator &Op() const;
 
-  void SetLimit(int limit) { limit_ = limit; }
+  void SetDistinct(std::vector<std::shared_ptr<expression::AbstractExpression>> distinct_column_exprs) {
+    distinct_column_exprs_ = distinct_column_exprs;
+  }
 
-  inline int GetLimit() const { return limit_; }
+  inline std::vector<std::shared_ptr<expression::AbstractExpression>> GetDistinct() {
+    return distinct_column_exprs_;
+  }
 
  private:
   Operator op;
   std::vector<std::shared_ptr<OperatorExpression>> children;
-  int limit_ = -1;
+  std::vector<std::shared_ptr<expression::AbstractExpression>> distinct_column_exprs_;
 };
 
 } // namespace optimizer
