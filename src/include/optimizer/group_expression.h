@@ -30,7 +30,7 @@ using GroupID = int32_t;
 //===--------------------------------------------------------------------===//
 class GroupExpression {
  public:
-  GroupExpression(Operator op, std::vector<GroupID> child_groups);
+  GroupExpression(Operator op, std::vector<GroupID> child_groups, int limit=-1);
 
   GroupID GetGroupID() const;
 
@@ -56,6 +56,7 @@ class GroupExpression {
   hash_t Hash() const;
 
   bool operator==(const GroupExpression &r);
+  inline int GetLimit() const { return limit_; }
 
  private:
   GroupID group_id;
@@ -67,6 +68,7 @@ class GroupExpression {
   std::unordered_map<PropertySet, std::tuple<double, std::shared_ptr<Stats>,
                                              std::vector<PropertySet>>>
       lowest_cost_table_;
+  int limit_ = -1;
 };
 
 } // namespace optimizer

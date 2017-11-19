@@ -607,7 +607,7 @@ shared_ptr<GroupExpression> Optimizer::MakeGroupExpression(
     memo_.InsertExpression(gexpr, false);
     child_groups.push_back(gexpr->GetGroupID());
   }
-  return make_shared<GroupExpression>(expr->Op(), child_groups);
+  return make_shared<GroupExpression>(expr->Op(), child_groups, expr->GetLimit());
 }
 
 bool Optimizer::RecordTransformedExpression(

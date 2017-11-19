@@ -488,6 +488,15 @@ void ChildPropertyGenerator::JoinHelper(const BaseOperatorNode *op) {
       PropertySet({make_shared<PropertyColumns>(std::move(left_cols))});
   auto r_property_set =
       PropertySet({make_shared<PropertyColumns>(std::move(right_cols))});
+
+  auto l_limit = child_groups_[0]->GetLimit();
+  auto r_limit = child_groups_[1]->GetLimit();
+
+  if (l_limit >= 0)
+    l_property_set.AddProperty(make_shared<PropertyLimit>(0, l_limit));
+  if (r_limit >= 0)
+    r_property_set.AddProperty(make_shared<PropertyLimit>(0, r_limit));
+
   child_input_propertys.push_back(l_property_set);
   child_input_propertys.emplace_back(r_property_set);
 

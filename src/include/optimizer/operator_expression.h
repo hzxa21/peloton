@@ -36,9 +36,14 @@ class OperatorExpression {
 
   const Operator &Op() const;
 
+  void SetLimit(int limit) { limit_ = limit; }
+
+  inline int GetLimit() const { return limit_; }
+
  private:
   Operator op;
   std::vector<std::shared_ptr<OperatorExpression>> children;
+  int limit_ = -1;
 };
 
 } // namespace optimizer

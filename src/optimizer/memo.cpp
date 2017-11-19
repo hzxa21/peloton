@@ -88,7 +88,7 @@ GroupID Memo::AddNewGroup(std::shared_ptr<GroupExpression> gexpr) {
       }
     }
   }
-  groups_.emplace_back(new_group_id, std::move(table_aliases));
+  groups_.emplace_back(new_group_id, std::move(table_aliases), gexpr->GetLimit());
   return new_group_id;
 }
 

@@ -19,8 +19,8 @@ namespace optimizer {
 //===--------------------------------------------------------------------===//
 // Group Expression
 //===--------------------------------------------------------------------===//
-GroupExpression::GroupExpression(Operator op, std::vector<GroupID> child_groups)
-    : group_id(UNDEFINED_GROUP), op(op), child_groups(child_groups) {}
+GroupExpression::GroupExpression(Operator op, std::vector<GroupID> child_groups, int limit)
+    : group_id(UNDEFINED_GROUP), op(op), child_groups(child_groups), limit_(limit) {}
 
 GroupID GroupExpression::GetGroupID() const { return group_id; }
 

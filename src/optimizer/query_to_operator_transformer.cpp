@@ -546,6 +546,7 @@ bool QueryToOperatorTransformer::ConvertSubquery(
               if (l_depth == r_depth)  // Not a valid join predicate
                 break;
               auto key_expr = l_depth < r_depth ? right_expr : left_expr;
+              output_expr_->SetLimit(1);
               subquery_contexts_.push_back(
                   std::make_shared<SubqueryOperatorExpressionContext>(
                       true, output_expr_, table_alias_set_, key_expr));
