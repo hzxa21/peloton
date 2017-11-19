@@ -22,8 +22,10 @@
 namespace peloton {
 namespace binder {
 
-void BinderContext::AddRegularTable(const parser::TableRef* table_ref,
+void BinderContext::AddRegularTable(parser::TableRef* table_ref,
+                                    const std::string default_database_name,
                                     concurrency::Transaction* txn) {
+  table_ref->TryBindDatabaseName(default_database_name);
   auto table_alias = table_ref->GetTableAlias();
   AddRegularTable(table_ref->GetDatabaseName(), table_ref->GetTableName(),
                   table_alias, txn);
@@ -103,7 +105,6 @@ bool BinderContext::GetColumnPosTuple(
           GetColumnPosTuple(col_name, entry.second, col_pos_tuple, value_type);
       if (get_matched) {
         if (!find_matched) {
-          // First match
           find_matched = true;
           table_alias = entry.first;
         } else {

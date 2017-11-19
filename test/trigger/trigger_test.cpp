@@ -90,14 +90,17 @@ class TriggerTests : public PelotonTest {
     insert_node->columns.push_back(col_1);
     insert_node->columns.push_back(col_2);
 
-    insert_node->insert_values.push_back(std::vector<std::unique_ptr<expression::AbstractExpression>>());
+    insert_node->insert_values.push_back(
+        std::vector<std::unique_ptr<expression::AbstractExpression>>());
     auto& values = insert_node->insert_values.at(0);
 
-    values.push_back(std::unique_ptr<expression::AbstractExpression>(new expression::ConstantValueExpression(
-      type::ValueFactory::GetIntegerValue(number))));
+    values.push_back(std::unique_ptr<expression::AbstractExpression>(
+        new expression::ConstantValueExpression(
+            type::ValueFactory::GetIntegerValue(number))));
 
-    values.push_back(std::unique_ptr<expression::AbstractExpression>(new expression::ConstantValueExpression(
-      type::ValueFactory::GetVarcharValue(text))));
+    values.push_back(std::unique_ptr<expression::AbstractExpression>(
+        new expression::ConstantValueExpression(
+            type::ValueFactory::GetVarcharValue(text))));
 
     insert_node->select.reset(new parser::SelectStatement());
 
@@ -126,6 +129,7 @@ class TriggerTests : public PelotonTest {
     auto create_trigger_stmt =
         static_cast<parser::CreateStatement *>(stmt_list->GetStatement(0));
 
+    create_trigger_stmt->TryBindDatabaseName(DEFAULT_DB_NAME);
     // Create plans
     planner::CreatePlan plan(create_trigger_stmt);
 
@@ -168,6 +172,7 @@ TEST_F(TriggerTests, BasicTest) {
   auto create_trigger_stmt1 =
       static_cast<parser::CreateStatement *>(stmt_list1->GetStatement(0));
 
+  create_trigger_stmt1->TryBindDatabaseName(DEFAULT_DB_NAME);
   // Create plans
   const planner::CreatePlan plan1(create_trigger_stmt1);
 
@@ -190,6 +195,8 @@ TEST_F(TriggerTests, BasicTest) {
   EXPECT_TRUE(stmt_list2->is_valid);
   auto create_trigger_stmt2 =
       static_cast<parser::CreateStatement *>(stmt_list2->GetStatement(0));
+
+  create_trigger_stmt2->TryBindDatabaseName(DEFAULT_DB_NAME);
   const planner::CreatePlan plan2(create_trigger_stmt2);
   trigger::Trigger trigger2(plan2);
   EXPECT_EQ("check_update_and_delete", trigger2.GetTriggerName());
@@ -236,7 +243,7 @@ TEST_F(TriggerTests, BeforeAndAfterRowInsertTriggers) {
   EXPECT_EQ(StatementType::CREATE, stmt_list->GetStatement(0)->GetType());
   auto create_trigger_stmt =
       static_cast<parser::CreateStatement *>(stmt_list->GetStatement(0));
-
+  create_trigger_stmt->TryBindDatabaseName(DEFAULT_DB_NAME);
   // Create plans
   planner::CreatePlan plan(create_trigger_stmt);
 
@@ -322,6 +329,7 @@ TEST_F(TriggerTests, AfterStatmentInsertTriggers) {
   auto create_trigger_stmt =
       static_cast<parser::CreateStatement *>(stmt_list->GetStatement(0));
 
+  create_trigger_stmt->TryBindDatabaseName(DEFAULT_DB_NAME);
   // Create plans
   planner::CreatePlan plan(create_trigger_stmt);
 

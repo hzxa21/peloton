@@ -45,7 +45,7 @@ QueryToOperatorTransformer::ConvertToOpExpression(parser::SQLStatement *op) {
   return output_expr_;
 }
 
-void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
+void QueryToOperatorTransformer::Visit(parser::SelectStatement *op) {
   // Store previous subquery contexts;
   auto pre_subquery_contexts = std::move(subquery_contexts_);
   subquery_contexts_ = SubqueryContexts();
@@ -208,7 +208,7 @@ void QueryToOperatorTransformer::Visit(const parser::SelectStatement *op) {
 
   LOG_DEBUG("Finish visiting select query with depth [%d]", depth_);
 }
-void QueryToOperatorTransformer::Visit(const parser::JoinDefinition *node) {
+void QueryToOperatorTransformer::Visit(parser::JoinDefinition *node) {
   // Get left operator
   node->left->Accept(this);
   auto left_expr = output_expr_;
@@ -273,7 +273,7 @@ void QueryToOperatorTransformer::Visit(const parser::JoinDefinition *node) {
 
 }
 
-void QueryToOperatorTransformer::Visit(const parser::TableRef *node) {
+void QueryToOperatorTransformer::Visit(parser::TableRef *node) {
   // Nested select. Not supported in the current executors
   if (node->select != nullptr) {
     // Store previous context
@@ -367,13 +367,13 @@ void QueryToOperatorTransformer::Visit(const parser::TableRef *node) {
   }
 }
 
-void QueryToOperatorTransformer::Visit(const parser::GroupByDescription *) {}
-void QueryToOperatorTransformer::Visit(const parser::OrderDescription *) {}
-void QueryToOperatorTransformer::Visit(const parser::LimitDescription *) {}
+void QueryToOperatorTransformer::Visit( parser::GroupByDescription *) {}
+void QueryToOperatorTransformer::Visit( parser::OrderDescription *) {}
+void QueryToOperatorTransformer::Visit( parser::LimitDescription *) {}
 
 void QueryToOperatorTransformer::Visit(
-    UNUSED_ATTRIBUTE const parser::CreateStatement *op) {}
-void QueryToOperatorTransformer::Visit(const parser::InsertStatement *op) {
+    UNUSED_ATTRIBUTE  parser::CreateStatement *op) {}
+void QueryToOperatorTransformer::Visit( parser::InsertStatement *op) {
   storage::DataTable *target_table =
       catalog::Catalog::GetInstance()->GetTableWithName(
           op->GetDatabaseName(), op->GetTableName(), txn_);
@@ -390,7 +390,7 @@ void QueryToOperatorTransformer::Visit(const parser::InsertStatement *op) {
   }
 }
 
-void QueryToOperatorTransformer::Visit(const parser::DeleteStatement *op) {
+void QueryToOperatorTransformer::Visit( parser::DeleteStatement *op) {
   auto target_table = catalog::Catalog::GetInstance()->GetTableWithName(
       op->GetDatabaseName(), op->GetTableName(), txn_);
   std::shared_ptr<OperatorExpression> table_scan;
@@ -408,14 +408,14 @@ void QueryToOperatorTransformer::Visit(const parser::DeleteStatement *op) {
   output_expr_ = delete_expr;
 }
 void QueryToOperatorTransformer::Visit(
-    UNUSED_ATTRIBUTE const parser::DropStatement *op) {}
+    UNUSED_ATTRIBUTE  parser::DropStatement *op) {}
 void QueryToOperatorTransformer::Visit(
-    UNUSED_ATTRIBUTE const parser::PrepareStatement *op) {}
+    UNUSED_ATTRIBUTE  parser::PrepareStatement *op) {}
 void QueryToOperatorTransformer::Visit(
-    UNUSED_ATTRIBUTE const parser::ExecuteStatement *op) {}
+    UNUSED_ATTRIBUTE  parser::ExecuteStatement *op) {}
 void QueryToOperatorTransformer::Visit(
-    UNUSED_ATTRIBUTE const parser::TransactionStatement *op) {}
-void QueryToOperatorTransformer::Visit(const parser::UpdateStatement *op) {
+    UNUSED_ATTRIBUTE  parser::TransactionStatement *op) {}
+void QueryToOperatorTransformer::Visit( parser::UpdateStatement *op) {
   auto target_table = catalog::Catalog::GetInstance()->GetTableWithName(
       op->table->GetDatabaseName(), op->table->GetTableName(), txn_);
   std::shared_ptr<OperatorExpression> table_scan;
@@ -438,9 +438,9 @@ void QueryToOperatorTransformer::Visit(const parser::UpdateStatement *op) {
   output_expr_ = update_expr;
 }
 void QueryToOperatorTransformer::Visit(
-    UNUSED_ATTRIBUTE const parser::CopyStatement *op) {}
+    UNUSED_ATTRIBUTE  parser::CopyStatement *op) {}
 void QueryToOperatorTransformer::Visit(
-    UNUSED_ATTRIBUTE const parser::AnalyzeStatement *op) {}
+    UNUSED_ATTRIBUTE  parser::AnalyzeStatement *op) {}
 
 void QueryToOperatorTransformer::Visit(expression::SubqueryExpression *expr) {
   auto cur_depth = depth_;

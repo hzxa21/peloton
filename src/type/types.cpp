@@ -306,38 +306,6 @@ std::vector<type::TypeId> StringToTypeArray(const std::string &types) {
   return result;
 }
 
-/** takes in 0-F, returns 0-15 */
-int32_t HexCharToInt(char c) {
-  c = static_cast<char>(toupper(c));
-  if ((c < '0' || c > '9') && (c < 'A' || c > 'F')) {
-    return -1;
-  }
-  int32_t retval;
-  if (c >= 'A')
-    retval = c - 'A' + 10;
-  else
-    retval = c - '0';
-
-  PL_ASSERT(retval >= 0 && retval < 16);
-  return retval;
-}
-
-bool HexDecodeToBinary(unsigned char* bufferdst, const char* hexString) {
-  PL_ASSERT(hexString);
-  size_t len = strlen(hexString);
-  if ((len % 2) != 0) return false;
-  uint32_t i;
-  for (i = 0; i < len / 2; i++) {
-    int32_t high = HexCharToInt(hexString[i * 2]);
-    int32_t low = HexCharToInt(hexString[i * 2 + 1]);
-    if ((high == -1) || (low == -1)) return false;
-    int32_t result = high * 16 + low;
-
-    PL_ASSERT(result >= 0 && result < 256);
-    bufferdst[i] = static_cast<unsigned char>(result);
-  }
-  return true;
-}
 //===--------------------------------------------------------------------===//
 // CreateType - String Utilities
 //===--------------------------------------------------------------------===//
@@ -859,6 +827,9 @@ std::string IndexTypeToString(IndexType type) {
     case IndexType::SKIPLIST: {
       return "SKIPLIST";
     }
+    case IndexType::ART: {
+      return "ART";
+    }
     default: {
       throw ConversionException(
           StringUtil::Format("No string conversion for IndexType value '%d'",
@@ -878,6 +849,8 @@ IndexType StringToIndexType(const std::string& str) {
     return IndexType::HASH;
   } else if (upper_str == "SKIPLIST") {
     return IndexType::SKIPLIST;
+  } else if (upper_str == "ART") {
+    return IndexType::ART;
   } else {
     throw ConversionException(StringUtil::Format(
         "No IndexType conversion from string '%s'", upper_str.c_str()));

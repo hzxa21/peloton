@@ -9,13 +9,14 @@
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
+
 #pragma once
-#include "task.h"
-#include "worker.h"
+#include "task_queue.h"
+#include "worker_pool.h"
 
 // TODO: tune these variables
 #define DEFAULT_WORKER_POOL_SIZE 4
-#define DEFAULT_TASK_QUEUE_SIZE 20
+#define DEFAULT_TASK_QUEUE_SIZE 32
 
 namespace peloton {
 namespace threadpool {
@@ -26,20 +27,41 @@ namespace threadpool {
  */
 class MonoQueuePool {
  public:
-  inline MonoQueuePool()
-    : task_queue_(DEFAULT_TASK_QUEUE_SIZE),
-      worker_pool_(DEFAULT_WORKER_POOL_SIZE, &task_queue_){}
+  MonoQueuePool() : task_queue_(DEFAULT_TASK_QUEUE_SIZE),
+                    worker_pool_(DEFAULT_WORKER_POOL_SIZE, &task_queue_),
+                    startup_(false) {}
+  ~MonoQueuePool() {
+    if (startup_ == true)
+      Shutdown();
+  }
 
-  ~MonoQueuePool();
+  void Startup() {
+    worker_pool_.Startup();
+    startup_ = true;
+  }
 
-  void SubmitTask(void(*task_ptr)(void *), void* task_arg, void(*task_callback_ptr)(void *), void* task_callback_arg);
+  void Shutdown() {
+    worker_pool_.Shutdown();
+    startup_ = false;
+  }
 
-  static MonoQueuePool& GetInstance();
+  void SubmitTask(void (*task_ptr)(void *), void *task_arg,
+                  void (*callback_ptr)(void *), void *callback_arg) {
+    if (startup_ == false)
+      Startup();
+    task_queue_.Enqueue(task_ptr, task_arg, callback_ptr, callback_arg);
+  }
+
+  static MonoQueuePool &GetInstance() {
+    static MonoQueuePool mono_queue_pool;
+    return mono_queue_pool;
+  }
 
  private:
   TaskQueue task_queue_;
   WorkerPool worker_pool_;
+  bool startup_;
 };
+
 } // namespace threadpool
 } // namespace peloton
-

@@ -34,7 +34,7 @@ PropertySet QueryPropertyExtractor::GetProperties(parser::SQLStatement *stmt) {
   return property_set_;
 }
 
-void QueryPropertyExtractor::Visit(const parser::SelectStatement *select_stmt) {
+void QueryPropertyExtractor::Visit(parser::SelectStatement *select_stmt) {
   // Generate PropertyColumns
   vector<shared_ptr<expression::AbstractExpression>> output_expressions;
   for (auto &col : select_stmt->select_list) {
@@ -56,10 +56,10 @@ void QueryPropertyExtractor::Visit(const parser::SelectStatement *select_stmt) {
   // Generate PropertyLimit
   if (select_stmt->limit != nullptr) select_stmt->limit->Accept(this);
 };
-void QueryPropertyExtractor::Visit(const parser::TableRef *) {}
-void QueryPropertyExtractor::Visit(const parser::JoinDefinition *) {}
-void QueryPropertyExtractor::Visit(const parser::GroupByDescription *) {}
-void QueryPropertyExtractor::Visit(const parser::OrderDescription *node) {
+void QueryPropertyExtractor::Visit(parser::TableRef *) {}
+void QueryPropertyExtractor::Visit(parser::JoinDefinition *) {}
+void QueryPropertyExtractor::Visit(parser::GroupByDescription *) {}
+void QueryPropertyExtractor::Visit(parser::OrderDescription *node) {
   vector<bool> sort_ascendings;
   vector<shared_ptr<expression::AbstractExpression>> sort_cols;
   auto len = node->exprs.size();
@@ -72,7 +72,7 @@ void QueryPropertyExtractor::Visit(const parser::OrderDescription *node) {
   property_set_.AddProperty(shared_ptr<PropertySort>(
       new PropertySort(move(sort_cols), sort_ascendings)));
 }
-void QueryPropertyExtractor::Visit(const parser::LimitDescription *limit) {
+void QueryPropertyExtractor::Visit(parser::LimitDescription *limit) {
   // When offset is not specified in the query, parser will set offset to -1
   int64_t offset = limit->offset == -1 ? 0 : limit->offset;
   property_set_.AddProperty(
@@ -80,33 +80,33 @@ void QueryPropertyExtractor::Visit(const parser::LimitDescription *limit) {
 }
 
 void QueryPropertyExtractor::Visit(
-    UNUSED_ATTRIBUTE const parser::CreateStatement *op) {}
+    UNUSED_ATTRIBUTE parser::CreateStatement *op) {}
 void QueryPropertyExtractor::Visit(
-    UNUSED_ATTRIBUTE const parser::InsertStatement *op) {
+    UNUSED_ATTRIBUTE parser::InsertStatement *op) {
   if (op->select != nullptr) op->select->Accept(this);
 }
 
-void QueryPropertyExtractor::Visit(const parser::DeleteStatement *) {
+void QueryPropertyExtractor::Visit(parser::DeleteStatement *) {
   property_set_.AddProperty(shared_ptr<PropertyColumns>(new PropertyColumns(
       vector<shared_ptr<expression::AbstractExpression>>())));
 }
 void QueryPropertyExtractor::Visit(
-    UNUSED_ATTRIBUTE const parser::DropStatement *op) {}
+    UNUSED_ATTRIBUTE parser::DropStatement *op) {}
 void QueryPropertyExtractor::Visit(
-    UNUSED_ATTRIBUTE const parser::PrepareStatement *op) {}
+    UNUSED_ATTRIBUTE parser::PrepareStatement *op) {}
 void QueryPropertyExtractor::Visit(
-    UNUSED_ATTRIBUTE const parser::ExecuteStatement *op) {}
+    UNUSED_ATTRIBUTE parser::ExecuteStatement *op) {}
 void QueryPropertyExtractor::Visit(
-    UNUSED_ATTRIBUTE const parser::TransactionStatement *op) {}
+    UNUSED_ATTRIBUTE parser::TransactionStatement *op) {}
 void QueryPropertyExtractor::Visit(
-    UNUSED_ATTRIBUTE const parser::UpdateStatement *op) {
+    UNUSED_ATTRIBUTE parser::UpdateStatement *op) {
   property_set_.AddProperty(shared_ptr<PropertyColumns>(new PropertyColumns(
       vector<shared_ptr<expression::AbstractExpression>>())));
 }
 void QueryPropertyExtractor::Visit(
-    UNUSED_ATTRIBUTE const parser::CopyStatement *op) {}
+    UNUSED_ATTRIBUTE parser::CopyStatement *op) {}
 void QueryPropertyExtractor::Visit(
-    UNUSED_ATTRIBUTE const parser::AnalyzeStatement *op) {}
+    UNUSED_ATTRIBUTE parser::AnalyzeStatement *op) {}
 
 }  // namespace optimizer
 }  // namespace peloton

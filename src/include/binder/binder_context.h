@@ -44,7 +44,8 @@ class BinderContext {
   }
 
   // Update the table alias map given a table reference (in the from clause)
-  void AddRegularTable(const parser::TableRef *table_ref,
+  void AddRegularTable(parser::TableRef *table_ref,
+                       const std::string default_database_name,
                        concurrency::Transaction *txn);
 
   // Update the table alias map given a table reference (in the from clause)
@@ -89,9 +90,9 @@ class BinderContext {
   void SetUpperContext(std::shared_ptr<BinderContext> upper_context) {
     upper_context_ = upper_context;
   }
-  
+
   void inline SetDepth(int depth) { depth_ = depth; }
-  
+
   int inline GetDepth() { return depth_; }
 
  private:

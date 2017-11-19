@@ -84,6 +84,7 @@ Optimizer::Optimizer() {
 
 shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
     const unique_ptr<parser::SQLStatementList> &parse_tree_list,
+    const std::string default_database_name,
     concurrency::Transaction *txn) {
   // Base Case
   if (parse_tree_list->GetStatements().size() == 0) return nullptr;
@@ -106,7 +107,7 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
     settings::SettingsManager::SetBool(settings::SettingId::codegen, true);
 
   // Run binder
-  auto bind_node_visitor = make_shared<binder::BindNodeVisitor>(txn);
+  auto bind_node_visitor = make_shared<binder::BindNodeVisitor>(txn, default_database_name);
   bind_node_visitor->BindNameToNode(parse_tree);
   // Generate initial operator tree from query tree
   shared_ptr<GroupExpression> gexpr = InsertQueryTree(parse_tree, txn);

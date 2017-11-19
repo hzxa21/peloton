@@ -198,7 +198,7 @@ bool CopyExecutor::DExecute() {
 
     // vectors for prepared statement parameters
     int num_params = 0;
-    std::vector<std::pair<int, std::string>> bind_parameters;
+    std::vector<std::pair<type::TypeId, std::string>> bind_parameters;
     std::vector<type::Value> param_values;
     std::vector<int16_t> formats;
     std::vector<int32_t> types;
@@ -269,7 +269,8 @@ bool CopyExecutor::DExecute() {
           // Write all the values to output file
           for (int i = 0; i < num_params; i++) {
             auto param_value = param_values[i];
-            LOG_TRACE("param_value.GetTypeId(): %d", param_value.GetTypeId());
+            LOG_TRACE("param_value.GetTypeId(): %s",
+                      TypeIdToString(param_value.GetTypeId()).c_str());
             // Avoid extra copy for varlen types
             if (param_value.GetTypeId() == type::TypeId::VARBINARY) {
               const char *data = param_value.GetData();
