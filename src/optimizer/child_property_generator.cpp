@@ -349,7 +349,14 @@ void ChildPropertyGenerator::AggregateHelper(const BaseOperatorNode *op) {
         groupby_cols, vector<bool>(groupby_cols.size(), true)));
   }
 
-  expression::ExpressionUtil::GetAggregateExprs(provided_col, having.get());
+  ExprSet agg_cols;
+  expression::ExpressionUtil::GetAggregateExprs(agg_cols, having.get());
+  provided_col.insert(agg_cols.begin(), agg_cols.end());
+  // The tuple value expressions in aggregation expressions occurred in the having clause
+  // need to be provided by the children.
+  for (auto& col : agg_cols) {
+    expression::ExpressionUtil::GetTupleValueExprs(child_col, col.get());
+  }
 
   // Add child PropertyColumn
   child_input_property_set.AddProperty(make_shared<PropertyColumns>(

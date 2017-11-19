@@ -531,7 +531,8 @@ OperatorToPlanTransformer::GenerateAggregatePlan(
 
   auto agg_id = 0;
   auto expr_len = prop_col->GetSize();
-  for (size_t col_pos = 0; col_pos < expr_len; col_pos++) {
+  size_t col_pos = 0;
+  for (; col_pos < expr_len; col_pos++) {
     auto expr = prop_col->GetColumn(col_pos);
     expression::ExpressionUtil::EvaluateExpression(children_expr_map_,
                                                    expr.get());
