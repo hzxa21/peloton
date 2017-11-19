@@ -292,7 +292,7 @@ void HashJoinTranslator::ConsumeFromRight(ConsumerContext &context,
   std::vector<codegen::Value> key;
   CollectKeys(row, right_key_exprs_, key);
 
-  if (GetJoinPlan().IsBloomFilterEnabled()) {
+  if (GetJoinPlan().UseBloomFilter()) {
     // Prefilter the tuple using Bloom Filter
     llvm::Value *contains = bloom_filter_.Contains(
         GetCodeGen(), LoadStatePtr(bloom_filter_id_), key);

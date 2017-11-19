@@ -61,8 +61,12 @@ class HashJoinPlan : public AbstractJoinPlan {
   }
 
   bool IsBloomFilterEnabled() const { return build_bloomfilter_; }
-  
+
   void SetBloomFilterFlag(bool flag) { build_bloomfilter_ = flag; }
+
+  bool UseBloomFilter() const { return use_bloomfilter_; }
+
+  void SetUseBloomFilter(bool flag) { use_bloomfilter_ = flag; }
 
   const std::string GetInfo() const override { return "HashJoin"; }
 
@@ -85,7 +89,8 @@ class HashJoinPlan : public AbstractJoinPlan {
   }
 
   std::unique_ptr<AbstractPlan> Copy() const override {
-    std::unique_ptr<const expression::AbstractExpression> predicate_copy(GetPredicate() ? GetPredicate()->Copy() : nullptr);
+    std::unique_ptr<const expression::AbstractExpression> predicate_copy(
+        GetPredicate() ? GetPredicate()->Copy() : nullptr);
     std::shared_ptr<const catalog::Schema> schema_copy(
         catalog::Schema::CopySchema(GetSchema()));
     HashJoinPlan *new_plan = new HashJoinPlan(
@@ -99,11 +104,13 @@ class HashJoinPlan : public AbstractJoinPlan {
 
   std::vector<std::unique_ptr<const expression::AbstractExpression>>
       left_hash_keys_;
-  
+
   std::vector<std::unique_ptr<const expression::AbstractExpression>>
       right_hash_keys_;
-  
+
   bool build_bloomfilter_;
+
+  bool use_bloomfilter_;
 
  private:
   DISALLOW_COPY_AND_MOVE(HashJoinPlan);

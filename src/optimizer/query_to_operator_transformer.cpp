@@ -191,8 +191,8 @@ void QueryToOperatorTransformer::Visit(parser::TableRef *node) {
     auto join_expr =
         std::make_shared<OperatorExpression>(LogicalInnerJoin::make(
             util::ConstructJoinPredicate(table_alias_set_, join_predicates_)));
-    join_expr->PushChild(left_expr);
     join_expr->PushChild(right_expr);
+    join_expr->PushChild(left_expr);
 
     // The default join tree shape is a right deep join tree
     for (size_t i = 2; i < node->list.size(); i++) {
