@@ -93,6 +93,10 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
 
   auto parse_tree = parse_tree_list->GetStatements().at(0).get();
 
+  // Run binder
+  auto bind_node_visitor = make_shared<binder::BindNodeVisitor>(txn, default_database_name);
+  bind_node_visitor->BindNameToNode(parse_tree);
+
   // Handle ddl statement
   bool is_ddl_stmt;
   auto ddl_plan = HandleDDLStatement(parse_tree, is_ddl_stmt, txn);
@@ -106,9 +110,7 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
   if (parse_tree->GetType() == StatementType::DELETE)
     settings::SettingsManager::SetBool(settings::SettingId::codegen, true);
 
-  // Run binder
-  auto bind_node_visitor = make_shared<binder::BindNodeVisitor>(txn, default_database_name);
-  bind_node_visitor->BindNameToNode(parse_tree);
+
   // Generate initial operator tree from query tree
   shared_ptr<GroupExpression> gexpr = InsertQueryTree(parse_tree, txn);
   GroupID root_id = gexpr->GetGroupID();

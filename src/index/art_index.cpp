@@ -112,7 +112,6 @@ ArtIndex::~ArtIndex() {}
  *
  */
 bool ArtIndex::InsertEntry(const storage::Tuple *key, ItemPointer *value) {
-  LOG_INFO("ART...");
   bool ret = true;
 
   ARTKey index_key;
