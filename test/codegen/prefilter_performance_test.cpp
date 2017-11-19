@@ -85,7 +85,7 @@ TEST_F(PrefilterCodegenTest, PerformanceTest) {
   const int outer_tuple_size = num_of_inners * bigint_size;
   const int L3_cache_size = 15360000;
   const int inner_target_size = L3_cache_size * 30;
-  const int outer_to_inner_ratio = 100;
+  const int outer_to_inner_ratio = 30;
   std::vector<double> selectivities = {0.8, 0.5, 0.2};
   int num_iter = 1;
 

@@ -231,6 +231,10 @@ class OAHashTable {
 
   // The size of the value itself
   uint64_t value_size_;
+
+  uint64_t num_probes_;
+
+  uint64_t num_misses_;
 };
 
 template <typename Key, typename Value>

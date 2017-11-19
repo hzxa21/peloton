@@ -17,8 +17,8 @@
 #include "codegen/hash.h"
 #include "codegen/lang/if.h"
 #include "codegen/lang/loop.h"
-#include "codegen/proxy/oa_hash_table_proxy.h"
 #include "codegen/lang/vectorized_loop.h"
+#include "codegen/proxy/oa_hash_table_proxy.h"
 #include "codegen/type/integer_type.h"
 #include "codegen/util/oa_hash_table.h"
 
@@ -65,6 +65,15 @@ llvm::Value *OAHashTable::LoadHashTableField(CodeGen &codegen,
   llvm::Type *hash_table_type = OAHashTableProxy::GetType(codegen);
   return codegen->CreateLoad(codegen->CreateConstInBoundsGEP2_32(
       hash_table_type, hash_table, 0, field_id));
+}
+
+void OAHashTable::StoreHashTableField(CodeGen &codegen, llvm::Value *hash_table,
+                                      uint32_t field_id,
+                                      llvm::Value *new_field_val) const {
+  llvm::Type *hash_table_type = OAHashTableProxy::GetType(codegen);
+  codegen->CreateStore(new_field_val,
+                       codegen->CreateConstInBoundsGEP2_32(
+                           hash_table_type, hash_table, 0, field_id));
 }
 
 // Return the element stored in a specified field of a HashEntry struct. Since
@@ -201,7 +210,7 @@ std::pair<llvm::Value *, llvm::Value *> OAHashTable::GetDataCountAndPointer(
                                  "singleValue"};
   {
     data_count_inline = codegen.Const64(1);
-    data_ptr_inline = AdvancePointer(codegen, after_key_p, (uint64_t) 0UL);
+    data_ptr_inline = AdvancePointer(codegen, after_key_p, (uint64_t)0UL);
   }
   is_entry_single_value.ElseBlock("multipleValue");
   {
@@ -386,6 +395,10 @@ void OAHashTable::TranslateProbing(
 
     // Call the call back with the pointer to dump data
     key_not_found(dump_data_ptr);
+  } else {
+    llvm::Value *num_misses = LoadHashTableField(codegen, hash_table, 10);
+    StoreHashTableField(codegen, hash_table, 10,
+                        codegen->CreateAdd(num_misses, codegen.Const64(1)));
   }
 
   codegen->CreateBr(key_found_or_inserted_bb);
@@ -600,6 +613,10 @@ void OAHashTable::VectorizedIterate(
 void OAHashTable::FindAll(CodeGen &codegen, llvm::Value *ht_ptr,
                           const std::vector<codegen::Value> &key,
                           IterateCallback &callback) const {
+  llvm::Value *num_probes = LoadHashTableField(codegen, ht_ptr, 9);
+  StoreHashTableField(codegen, ht_ptr, 9,
+                      codegen->CreateAdd(num_probes, codegen.Const64(1)));
+
   auto key_found = [&codegen, &callback, &key](llvm::Value *data_ptr) {
     callback.ProcessEntry(codegen, key, data_ptr);
   };
@@ -616,6 +633,10 @@ void OAHashTable::FindAll(CodeGen &codegen, llvm::Value *ht_ptr,
 }
 
 void OAHashTable::Destroy(CodeGen &codegen, llvm::Value *ht_ptr) const {
+  llvm::Value *num_probes = LoadHashTableField(codegen, ht_ptr, 9);
+  llvm::Value *num_misses = LoadHashTableField(codegen, ht_ptr, 10);
+  codegen.CallPrintf("Hash Table Num of probes: %lu, Num of misses: %lu\n",
+                     {num_probes, num_misses});
   codegen.Call(OAHashTableProxy::Destroy, {ht_ptr});
 }
 

@@ -41,6 +41,8 @@ PROXY(OAHashTable) {
   DECLARE_MEMBER(6, int64_t, entry_size);
   DECLARE_MEMBER(7, int64_t, key_size);
   DECLARE_MEMBER(8, int64_t, value_size);
+  DECLARE_MEMBER(9, uint64_t, num_probes);
+  DECLARE_MEMBER(10, uint64_t, num_misses);
 
   DECLARE_TYPE;
 

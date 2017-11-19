@@ -133,6 +133,9 @@ class OAHashTable : public HashTable {
   llvm::Value *LoadHashTableField(CodeGen &codegen, llvm::Value *hash_table,
                                   uint32_t field_id) const;
 
+  void StoreHashTableField(CodeGen &codegen, llvm::Value *hash_table,
+                           uint32_t field_id, llvm::Value *new_field_val) const;
+
   llvm::Value *LoadHashEntryField(CodeGen &codegen, llvm::Value *entry_ptr,
                                   uint32_t offset, uint32_t field_id) const;
 

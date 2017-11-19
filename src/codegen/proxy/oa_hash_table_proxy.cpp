@@ -27,7 +27,7 @@ DEFINE_TYPE(OAHashTable, "peloton::OAHashTable", MEMBER(buckets),
             MEMBER(num_buckets), MEMBER(bucket_mask),
             MEMBER(num_occupied_buckets), MEMBER(num_entries),
             MEMBER(resize_threshold), MEMBER(entry_size), MEMBER(key_size),
-            MEMBER(value_size));
+            MEMBER(value_size), MEMBER(num_probes), MEMBER(num_misses));
 
 DEFINE_METHOD(peloton::codegen::util, OAHashTable, Init);
 DEFINE_METHOD(peloton::codegen::util, OAHashTable, StoreTuple);
