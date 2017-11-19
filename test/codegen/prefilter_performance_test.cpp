@@ -79,26 +79,33 @@ TEST_F(PrefilterCodegenTest, PerformanceTest) {
   auto *catalog = catalog::Catalog::GetInstance();
   auto *txn = txn_manager.BeginTransaction();
 
+  // Parameters
+  const unsigned num_of_inners = 3;
+  const int inner_tuple_size = 512;
+  const int outer_tuple_size = num_of_inners * bigint_size;
+  const int L3_cache_size = 15360000;
+  const int inner_target_size = L3_cache_size * 30;
+  const int outer_to_inner_ratio = 100;
+  std::vector<double> selectivities = {0.8, 0.5, 0.2};
+  int num_iter = 1;
+
   // Create inner tables
-  unsigned num_of_inners = 3;
   for (unsigned i = 0; i < num_of_inners; i++) {
     inner_table_names.push_back("inner_r" + std::to_string(i));
   }
-  const std::vector<int> inner_tuple_sizes(num_of_inners, 512);
+  const std::vector<int> inner_tuple_sizes(num_of_inners, inner_tuple_size);
   for (unsigned i = 0; i < inner_tuple_sizes.size(); i++) {
     CreateTable(inner_table_names[i], inner_tuple_sizes[i], txn);
   }
 
   // Create outer table
-  const int outer_tuple_size = num_of_inners * bigint_size;
   outer_table_name = "outer_r";
   CreateTable(outer_table_name, outer_tuple_size, txn);
 
   // Load inner relations
-  const int L3_cache_size = 60000;
   std::vector<std::vector<int>> inner_numbers(num_of_inners);
   std::vector<std::unordered_set<int>> inner_number_sets(num_of_inners);
-  std::vector<int> target_sizes(num_of_inners, L3_cache_size * 1);
+  std::vector<int> target_sizes(num_of_inners, inner_target_size);
   for (unsigned i = 0; i < num_of_inners; i++) {
     LoadTable(inner_table_names[i], inner_tuple_sizes[i], target_sizes[i],
               inner_numbers[i], inner_number_sets[i], txn);
@@ -107,10 +114,8 @@ TEST_F(PrefilterCodegenTest, PerformanceTest) {
   LOG_INFO("Finish populating inner tables");
 
   // Load outer relation
-  const int outer_to_inner_ratio = 10;
   auto *outer_table =
       catalog->GetTableWithName(DEFAULT_DB_NAME, outer_table_name, txn);
-  std::vector<double> selectivities = {0.8, 0.5, 0.2};
   PL_ASSERT(selectivities.size() == num_of_inners);
   unsigned outer_table_cardinality =
       inner_numbers[0].size() * outer_to_inner_ratio;
@@ -139,10 +144,10 @@ TEST_F(PrefilterCodegenTest, PerformanceTest) {
   LOG_INFO("Finish populating outer table");
 
   // Generate the query for each possible order
-  int num_iter = 1;
   std::vector<int> indexes(num_of_inners);
   std::iota(indexes.begin(), indexes.end(), 0);
   do {
+    LOG_INFO("\n");
     std::string query = "SELECT * FROM " + outer_table_name;
     for (int index : indexes) {
       query += ", ";
@@ -172,13 +177,10 @@ TEST_F(PrefilterCodegenTest, PerformanceTest) {
   txn_manager.CommitTransaction(txn);
 }
 
-std::
-
-    double
-    PrefilterCodegenTest::ExecuteJoin(
-        std::string query, concurrency::Transaction *txn, int num_iter,
-        std::vector<std::vector<int>> &inner_numbers, std::vector<int> &indexes,
-        bool enable_robust_execution) {
+double PrefilterCodegenTest::ExecuteJoin(
+    std::string query, concurrency::Transaction *txn, int num_iter,
+    std::vector<std::vector<int>> &inner_numbers, std::vector<int> &indexes,
+    bool enable_robust_execution) {
   std::unique_ptr<optimizer::AbstractOptimizer> optimizer(
       new optimizer::Optimizer());
   double total_runtime = 0;
@@ -273,8 +275,8 @@ void PrefilterCodegenTest::CreateTable(std::string table_name, int tuple_size,
     curr_size += bigint_size;
   }
   auto *catalog = catalog::Catalog::GetInstance();
-  catalog->CreateTable(DEFAULT_DB_NAME, table_name,
-                       std::make_unique<catalog::Schema>(cols), txn);
+  std::unique_ptr<catalog::Schema> schema(new catalog::Schema(cols));
+  catalog->CreateTable(DEFAULT_DB_NAME, table_name, std::move(schema), txn);
 }
 
 // Insert a tuple to specific table

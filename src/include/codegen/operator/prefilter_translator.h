@@ -36,6 +36,9 @@ class PrefilterTranslator : public OperatorTranslator {
   // Codegen any initialization work for this operator
   void InitializeState() override;
 
+  // Codegen any cleanup work for this translator
+  void TearDownState() override;
+
   // Define any helper functions this translator needs
   void DefineAuxiliaryFunctions() override {}
 
@@ -45,10 +48,14 @@ class PrefilterTranslator : public OperatorTranslator {
   // The method that consumes tuples from child operators
   void Consume(ConsumerContext &context, RowBatch::Row &row) const override;
 
-  // Codegen any cleanup work for this translator
-  void TearDownState() override {}
-
   std::string GetName() const override;
+
+ private:
+  void StartTimer(uint32_t timer_id) const;
+
+  void StopTimer(uint32_t timer_id) const;
+
+  llvm::Value *GetDuration(uint32_t timer_id) const;
 
  private:
   // Prefilter Plan
@@ -56,6 +63,9 @@ class PrefilterTranslator : public OperatorTranslator {
 
   // Bloom Filter Codegen Accessor
   BloomFilterAccessor bloom_filter_;
+
+  // Runtime State Id of timer set
+  RuntimeState::StateID timer_set_id_;
 
   // Runtime State ids of all bloom filters in the consecutive right deep tree
   std::vector<RuntimeState::StateID> bloom_filter_ids_;

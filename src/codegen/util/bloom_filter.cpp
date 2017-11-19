@@ -54,9 +54,10 @@ void BloomFilter::Init(uint64_t estimated_num_tuples) {
     num_bits_ = -(double)estimated_num_tuples * num_hash_funcs_ /
                 log(1 - pow(kFalsePositiveRate, 1.0 / (double)num_hash_funcs_));
   }
-  LOG_INFO("BloomFilter num_bits: %lu bits_per_element: %f num_hash_funcs: %lu",
-           (unsigned long)num_bits_, (double)num_bits_ / estimated_num_tuples,
-           (unsigned long)num_hash_funcs_);
+  LOG_DEBUG(
+      "BloomFilter num_bits: %lu bits_per_element: %f num_hash_funcs: %lu",
+      (unsigned long)num_bits_, (double)num_bits_ / estimated_num_tuples,
+      (unsigned long)num_hash_funcs_);
 
   // Allocate memory for the underlying bytes array
   uint64_t num_bytes = (num_bits_ + 7) / 8;
@@ -70,9 +71,9 @@ void BloomFilter::Init(uint64_t estimated_num_tuples) {
 
 void BloomFilter::Destroy() {
   // Free memory of underlying bytes array
-  LOG_DEBUG("Bloom Filter, num_probes: %lu, misses: %lu, Selectivity: %f",
-            (unsigned long)num_probes_, (unsigned long)num_misses_,
-            (double)(num_probes_ - num_misses_) / num_probes_);
+  LOG_INFO("Bloom Filter, num_probes: %lu, misses: %lu, Selectivity: %f",
+           (unsigned long)num_probes_, (unsigned long)num_misses_,
+           (double)(num_probes_ - num_misses_) / num_probes_);
   delete[] bytes_;
 }
 
