@@ -141,6 +141,9 @@ WriteState NetworkConnection::WritePackets() {
   if (protocol_handler_->force_flush == true) {
     return FlushWriteBuffer();
   }
+
+  // we have flushed, disable force flush now
+  protocol_handler_->force_flush = false;
   return WriteState::WRITE_COMPLETE;
 }
 
@@ -336,8 +339,6 @@ WriteState NetworkConnection::FlushWriteBuffer() {
   // buffer is empty
   wbuf_.Reset();
 
-  // we have flushed, disable force flush now
-  protocol_handler_->force_flush = false;
 
   // we are ok
   return WriteState::WRITE_COMPLETE;
