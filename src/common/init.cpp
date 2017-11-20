@@ -94,7 +94,7 @@ void PelotonInit::Initialize() {
 
   benchmark::tpch::Configuration config;
   config.suffix = "tbl";
-  config.data_dir = "/home/patrick/peloton/tpch-small";
+  config.data_dir = "/home/patrick/peloton/tpch01";
 
   // Create the DB instance
   benchmark::tpch::TPCHDatabase tpch_db{config};
