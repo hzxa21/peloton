@@ -593,6 +593,9 @@ bool QueryToOperatorTransformer::ConvertSubquery(
                                                select_ele->Copy());
       auto pred_depth = join_predicate->DeriveDepth();
       predicates_by_depth_[pred_depth].push_back(join_predicate);
+      std::vector<std::shared_ptr<expression::AbstractExpression>> v =
+          {std::shared_ptr<expression::AbstractExpression>(select_ele->Copy())};
+      output_expr_->SetDistinct(v);
       subquery_contexts_.push_back(
           std::make_shared<SubqueryOperatorExpressionContext>(
               true, output_expr_, table_alias_set_, select_ele));

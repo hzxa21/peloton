@@ -171,7 +171,7 @@ bool AggregateExecutor::DExecute() {
   }
 
   // Transform output table into result
-  LOG_DEBUG("%s", output_table->GetInfo().c_str());
+  LOG_TRACE("%s", output_table->GetInfo().c_str());
   auto tile_group_count = output_table->GetTileGroupCount();
   if (tile_group_count == 0 || output_table->GetTupleCount() == 0) return false;
 
