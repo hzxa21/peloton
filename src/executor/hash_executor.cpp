@@ -93,7 +93,7 @@ bool HashExecutor::DExecute() {
             tile->RemoveVisibility(tuple_id);
           }
           hash_table_[key].insert(
-              std::make_pair(child_tile_itr, tuple_id));
+              std::make_pair(output_tile_itrs_.size()-1, tuple_id));
         }
       }
     }
