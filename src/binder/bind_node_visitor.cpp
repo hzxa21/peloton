@@ -43,9 +43,7 @@ void BindNodeVisitor::Visit(parser::SelectStatement *node) {
     node->where_clause->DeriveDepth();
     node->where_clause->DeriveSubqueryFlag();
   }
-  if (node->order != nullptr) node->order->Accept(this);
-  if (node->limit != nullptr) node->limit->Accept(this);
-  if (node->group_by != nullptr) node->group_by->Accept(this);
+  std::unordered_map<std::string, expression::AbstractExpression*> alias_to_select_elements;
   for (auto &select_element : node->select_list) {
     select_element->Accept(this);
     // Derive depth for all exprs in the select clause
@@ -60,7 +58,42 @@ void BindNodeVisitor::Visit(parser::SelectStatement *node) {
                                                    select_element.get());
     // Recursively deduce expression name
     select_element->DeduceExpressionName();
+
+    if (!select_element->alias.empty())
+      alias_to_select_elements[StringUtil::Lower(select_element->alias)] = select_element.get();
   }
+
+  if (node->order != nullptr) {
+    // "SELECT a+b as aa FROM test order by aa" is valid
+    // "SELECT a+b as aa FROM test order by aa + a" is invalid
+    auto& order_by_exprs = node->order->exprs;
+    for (auto &order_by_expr : order_by_exprs) {
+      if (order_by_expr->GetExpressionType() == ExpressionType::VALUE_TUPLE) {
+        auto tv_expr = reinterpret_cast<expression::TupleValueExpression*>(order_by_expr.get());
+        auto match_select_element = alias_to_select_elements.find(StringUtil::Lower(tv_expr->GetColumnName()));
+        if (match_select_element != alias_to_select_elements.end())
+          order_by_expr.reset(match_select_element->second->Copy());
+      }
+    }
+    node->order->Accept(this);
+  }
+  if (node->group_by != nullptr) {
+    // "SELECT a+b as aa FROM test group by aa" is valid
+    // "SELECT a+b as aa FROM test group by aa + a" is invalid
+    auto& group_by_exprs = node->group_by->columns;
+    for (auto &group_by_expr : group_by_exprs) {
+      if (group_by_expr->GetExpressionType() == ExpressionType::VALUE_TUPLE) {
+        auto tv_expr = reinterpret_cast<expression::TupleValueExpression*>(group_by_expr.get());
+        auto match_select_element = alias_to_select_elements.find(StringUtil::Lower(tv_expr->GetColumnName()));
+        if (match_select_element != alias_to_select_elements.end())
+          group_by_expr.reset(match_select_element->second->Copy());
+      }
+    }
+    node->group_by->Accept(this);
+  }
+
+  if (node->limit != nullptr) node->limit->Accept(this);
+
   // Temporarily discard const to update the depth
   const_cast<parser::SelectStatement*>(node)->depth = context_->GetDepth();
 }

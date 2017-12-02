@@ -234,6 +234,10 @@ TEST_F(OptimizerSQLTests, SelectOrderByTest) {
   TestUtil("SELECT * from test order by a", {"1", "22", "333", "2", "11", "0",
                                              "3", "33", "444", "4", "0", "555"},
            true);
+
+  // Testing order by select element alias
+  TestUtil("SELECT a+b as aa from test order by aa", {"4", "13", "23", "36"},
+           true);
 }
 
 TEST_F(OptimizerSQLTests, SelectLimitTest) {
@@ -429,6 +433,11 @@ TEST_F(OptimizerSQLTests, GroupByTest) {
   // In case of SortGroupBy, no additional sort should be enforced after groupby
   TestUtil("SELECT a + b FROM test GROUP BY a,b ORDER BY a",
            {"23", "13", "36", "4", "16", "28"}, true);
+
+  // Testing group by select element alias
+  TestUtil("SELECT a+b as aa, sum(c) from test group by aa",
+           {"28", "333", "16", "0", "36", "444", "23", "333", "13", "0", "4", "555"},
+           false);
 }
 
 TEST_F(OptimizerSQLTests, SelectDistinctTest) {

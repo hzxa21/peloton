@@ -88,7 +88,7 @@ SETTING_bool(layout_tuner, "Enable layout tuner (default: false)", false,
 
 SETTING_bool(codegen,
              "Enable code-generation for query execution (default: true)",
-             true, true, true)
+             false, true, true)
 
 //===----------------------------------------------------------------------===//
 // Optimizer
