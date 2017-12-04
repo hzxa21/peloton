@@ -21,6 +21,7 @@
 #include "type/serializer.h"
 #include "type/types.h"
 #include "expression/abstract_expression.h"
+#include "storage/data_table.h"
 
 namespace peloton {
 
@@ -48,7 +49,7 @@ class SeqScanPlan : public AbstractScan {
 
   inline PlanNodeType GetPlanNodeType() const { return PlanNodeType::SEQSCAN; }
 
-  const std::string GetInfo() const { return "SeqScan"; }
+  const std::string GetInfo() const { return "SeqScan on " + GetTable()->GetName(); }
 
   void SetParameterValues(std::vector<type::Value> *values);
 
